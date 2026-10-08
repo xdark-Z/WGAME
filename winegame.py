@@ -943,11 +943,13 @@ def sets_ui(qs, eid, uid, email):
 def register():
     st.subheader("Registro de participante")
     with st.form("reg"):
-        c1, c2 = st.columns(2)
-        nombre = c1.text_input("Nombre")
-        apellido = c2.text_input("Apellido")
-        edad = c1.number_input("Edad", 10, 120, 18)
-        genero = c2.selectbox("Género", ["Hombre", "Mujer", "Otro"])
+        # una fila de columnas por par de campos: en el celular se apilan en orden (Nombre, Apellido, Edad, Género)
+        a1, a2 = st.columns(2)
+        nombre = a1.text_input("Nombre")
+        apellido = a2.text_input("Apellido")
+        b1, b2 = st.columns(2)
+        edad = b1.number_input("Edad", 10, 120, 18)
+        genero = b2.selectbox("Género", ["Hombre", "Mujer", "Otro"])
         email = st.text_input("Correo electrónico")
         if st.form_submit_button("Continuar"):
             email = email.strip().lower()
