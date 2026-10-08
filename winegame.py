@@ -25,6 +25,12 @@ def norm_level(v):
         if t == L.lower() or t == str(i + 1) or t == f"{i + 1}.0":
             return L, True
     return None, False
+try:  # fuerza el tema claro de Streamlit aunque el celular este en modo oscuro (sin config.toml)
+    for _k, _v in {"theme.base": "light", "theme.primaryColor": "#722F37", "theme.backgroundColor": "#FDF7F4",
+                   "theme.secondaryBackgroundColor": "#F6EDEA", "theme.textColor": "#2A1A1D"}.items():
+        st._config.set_option(_k, _v)
+except Exception:
+    pass
 st.set_page_config(page_title="The Brillat Game", page_icon=":material/wine_bar:", layout="wide", initial_sidebar_state="expanded")
 
 
@@ -267,6 +273,25 @@ html,body,.stApp{color-scheme:light!important}
 .st-key-qopts label[data-baseweb=radio]:not(:has(input:checked)) :is(p,span,div){color:#2a1a1d!important;-webkit-text-fill-color:#2a1a1d!important;opacity:1!important}
 .st-key-qopts label[data-baseweb=radio]:has(input:checked){background:linear-gradient(120deg,#4a1520,#8a2f3f)!important;border-color:#C9A24B!important}
 .st-key-qopts label[data-baseweb=radio]:has(input:checked) :is(p,span,div){color:#fff!important;-webkit-text-fill-color:#fff!important}
+
+/* ---- robustez movil/oscuro: estrellas y opciones sin depender de la estructura exacta ---- */
+[class*="st-key-star_"] [data-testid=stRadio] [role=radiogroup],[class*="st-key-star_"] [data-testid=stRadio] div:has(>label[data-baseweb=radio]){display:flex!important;flex-direction:row-reverse!important;justify-content:center!important;gap:6px!important;width:100%}
+[class*="st-key-star_"] label[data-baseweb=radio]{width:auto!important;background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;margin:0!important;transform:none!important;display:block!important}
+[class*="st-key-star_"] label[data-baseweb=radio]>:not(input){display:none!important}
+[class*="st-key-star_"] label[data-baseweb=radio]::before{content:"";display:block;width:36px;height:36px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23cdb98a' stroke-width='1.4' stroke-linejoin='round'%3E%3Cpolygon points='12,2 15.1,8.6 22,9.3 16.8,14 18.4,21 12,17.3 5.6,21 7.2,14 2,9.3 8.9,8.6'/%3E%3C/svg%3E") center/contain no-repeat}
+[class*="st-key-star_"] label[data-baseweb=radio]:hover::before,[class*="st-key-star_"] label[data-baseweb=radio]:hover~label::before,[class*="st-key-star_"] label[data-baseweb=radio]:has(input:checked)::before,[class*="st-key-star_"] label[data-baseweb=radio]:has(input:checked)~label::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23C9A24B' stroke='%23a8832f' stroke-width='1.4' stroke-linejoin='round'%3E%3Cpolygon points='12,2 15.1,8.6 22,9.3 16.8,14 18.4,21 12,17.3 5.6,21 7.2,14 2,9.3 8.9,8.6'/%3E%3C/svg%3E")}
+.st-key-qopts label[data-baseweb=radio]{width:100%}
+.st-key-qopts label[data-baseweb=radio]::before{content:counter(opt,upper-alpha);flex:0 0 34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:700 15px 'Playfair Display',serif;color:#722f37;background:#fff;border:1.5px solid #C9A24B}
+.st-key-qopts [data-testid=stRadio] [role=radiogroup],.st-key-qopts [data-testid=stRadio] div:has(>label[data-baseweb=radio]){display:flex!important;flex-direction:column;gap:12px;counter-reset:opt}
+.st-key-qopts label[data-baseweb=radio]{counter-increment:opt}
+.st-key-qopts label[data-baseweb=radio]:has(input:checked)::before{background:#C9A24B;color:#3b0f18}
+/* tema claro forzado en widgets */
+[data-testid=stWidgetLabel] *,[data-testid=stRadio] label *,[data-testid=stCheckbox] label *,[data-testid=stMetric] *,[data-testid=stExpander] summary *,[data-testid=stMarkdownContainer]>p,[data-testid=stMarkdownContainer]>ul li{color:#2a1a1d}
+[data-baseweb=select] div,[data-baseweb=select] input,[data-baseweb=input] div,[data-baseweb=base-input],[data-baseweb=textarea],[data-baseweb=datepicker] div{background-color:#fff!important;color:#2a1a1d!important;-webkit-text-fill-color:#2a1a1d}
+[data-baseweb=select] svg{fill:#722f37!important}
+[data-baseweb=tag]{background:#f1d2d7!important}[data-baseweb=tag] *{color:#4a1520!important;background:transparent!important}
+[data-baseweb=popover] *,[data-baseweb=menu],ul[role=listbox],ul[role=listbox] li{background-color:#fff!important;color:#2a1a1d!important}
+[data-baseweb=popover] li:hover,ul[role=listbox] li[aria-selected=true]{background-color:#f6e3b5!important}
 """
 
 BUBBLES_JS = """<script>
