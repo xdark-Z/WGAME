@@ -296,7 +296,8 @@ html,body,.stApp{color-scheme:light!important}
 /* ---- rendimiento en celulares: sin blur, sin animaciones pesadas ---- */
 @media (max-width:900px),(hover:none){
  .block-container{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:rgba(253,247,244,.98)!important;animation:none!important;box-shadow:0 10px 30px rgba(0,0,0,.4)!important}
- .hdr,.hdr .gh,.hdr .wv,.hdr .t span,.hdr .prot{animation:none!important}.hdr .sp{display:none!important}
+ .hdr,.hdr .t span,.hdr .prot{animation:none!important}.hdr .sp{display:none!important}
+ .hdr .gh{animation:swirl 5s ease-in-out infinite!important;will-change:transform}.hdr .wv{animation:wave 2.2s linear infinite!important}
  [class*="st-key-qr_"],[class*="st-key-ql_"],.st-key-qopts [role=radiogroup]>label,.st-key-qopts label[data-baseweb=radio]{animation:none!important;transition:none!important}
  [data-testid=stSidebar]{backdrop-filter:none!important}
  .st-key-usecbox [data-testid=stButtonGroup]{justify-content:center;flex-wrap:wrap}
@@ -326,6 +327,10 @@ html,body,.stApp{color-scheme:light!important}
  .st-key-qopts [role=radiogroup] label::before{flex:0 0 30px;height:30px;font-size:13px}
  .st-key-qopts [role=radiogroup] label p{font-size:15px}
 }
+
+/* la copa se llena cuando la tarjeta de resultado aparece en pantalla (celular y computador) */
+.res.arm:not(.go) *,.res.arm:not(.go) .num:after,.res.arm:not(.go) .pcl:after{animation-play-state:paused!important}
+.res .liq{will-change:transform}
 """
 
 BUBBLES_JS = """<script>
@@ -489,6 +494,14 @@ def result_card(score, total, pos=None, n=None):
     st.markdown(kf + f'<div class="res">{drops}<div class="eb">Tu resultado</div>{glass}'
                 f'<div><span class="num"></span><span class="of">/ {total}</span></div><div class="pcl"></div>'
                 f'<h3>{title}</h3><div class="sub">{sub}</div><div class="chips">{chips}</div></div>', unsafe_allow_html=True)
+    js = ("<script>(function(){const P=window.parent,D=P.document;D.querySelectorAll('.res:not(.seen)').forEach(function(e){"
+          "e.classList.add('seen','arm');const io=new P.IntersectionObserver(function(es){es.forEach(function(x){"
+          "if(x.isIntersecting){e.classList.add('go');io.disconnect();}});},{threshold:.45});io.observe(e);"
+          "setTimeout(function(){e.classList.add('go');},6000);});})();</script>")
+    try:
+        st.html(js, unsafe_allow_javascript=True, width="content")
+    except TypeError:
+        components.html(js, height=0)
 
 theme()
 
