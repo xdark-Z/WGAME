@@ -303,28 +303,28 @@ html,body,.stApp{color-scheme:light!important}
 }
 
 /* ===== DISENO UNICO en computador, Android e iPhone: estrellas y alternativas (no dependen de la estructura interna) ===== */
-[class*="st-key-star_"] [role=radiogroup],[class*="st-key-star_"] div:has(>label){display:flex!important;flex-direction:row-reverse!important;justify-content:center!important;align-items:center!important;gap:6px!important;width:100%!important}
-[class*="st-key-star_"] label{display:block!important;position:relative;flex:0 0 auto;width:36px!important;min-width:36px!important;height:36px!important;padding:0!important;margin:0!important;border:0!important;box-shadow:none!important;transform:none!important;overflow:hidden;cursor:pointer;font-size:0!important;line-height:0!important;
+[class*="st-key-star_"] [role=radiogroup]{display:flex!important;flex-direction:row-reverse!important;justify-content:center!important;align-items:center!important;gap:6px!important;width:100%!important}
+[class*="st-key-star_"] [role=radiogroup] label{display:block!important;position:relative;flex:0 0 auto;width:36px!important;min-width:36px!important;height:36px!important;padding:0!important;margin:0!important;border:0!important;box-shadow:none!important;transform:none!important;overflow:hidden;cursor:pointer;font-size:0!important;line-height:0!important;
  background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23cdb98a' stroke-width='1.4' stroke-linejoin='round'%3E%3Cpolygon points='12,2 15.1,8.6 22,9.3 16.8,14 18.4,21 12,17.3 5.6,21 7.2,14 2,9.3 8.9,8.6'/%3E%3C/svg%3E") center/contain no-repeat!important;transition:transform .15s}
-[class*="st-key-star_"] label>*{display:none!important}
-[class*="st-key-star_"] label::before,[class*="st-key-star_"] label::after{content:none!important;display:none!important}
-[class*="st-key-star_"] label:hover,[class*="st-key-star_"] label:hover~label,[class*="st-key-star_"] label:has(input:checked),[class*="st-key-star_"] label:has(input:checked)~label{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23C9A24B' stroke='%23a8832f' stroke-width='1.4' stroke-linejoin='round'%3E%3Cpolygon points='12,2 15.1,8.6 22,9.3 16.8,14 18.4,21 12,17.3 5.6,21 7.2,14 2,9.3 8.9,8.6'/%3E%3C/svg%3E")!important}
-[class*="st-key-star_"] label:hover{transform:scale(1.2) rotate(-8deg)!important}
-.st-key-qopts [role=radiogroup],.st-key-qopts div:has(>label){display:flex!important;flex-direction:column!important;gap:12px!important;counter-reset:opt;width:100%}
-.st-key-qopts label{counter-increment:opt;display:flex!important;align-items:center!important;gap:14px!important;margin:0!important;padding:14px 18px!important;border:1.5px solid #e2d4cf!important;border-radius:14px!important;background:#fbf8f6!important;cursor:pointer;
+[class*="st-key-star_"] [role=radiogroup] label>*{display:none!important}
+[class*="st-key-star_"] [role=radiogroup] label::before,[class*="st-key-star_"] [role=radiogroup] label::after{content:none!important;display:none!important}
+[class*="st-key-star_"] [role=radiogroup] label:hover,[class*="st-key-star_"] [role=radiogroup] label:hover~label,[class*="st-key-star_"] [role=radiogroup] label:has(input:checked),[class*="st-key-star_"] [role=radiogroup] label:has(input:checked)~label{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23C9A24B' stroke='%23a8832f' stroke-width='1.4' stroke-linejoin='round'%3E%3Cpolygon points='12,2 15.1,8.6 22,9.3 16.8,14 18.4,21 12,17.3 5.6,21 7.2,14 2,9.3 8.9,8.6'/%3E%3C/svg%3E")!important}
+[class*="st-key-star_"] [role=radiogroup] label:hover{transform:scale(1.2) rotate(-8deg)!important}
+.st-key-qopts [role=radiogroup]{display:flex!important;flex-direction:column!important;gap:12px!important;counter-reset:opt;width:100%}
+.st-key-qopts [role=radiogroup] label{counter-increment:opt;display:flex!important;align-items:center!important;gap:14px!important;margin:0!important;padding:14px 18px!important;border:1.5px solid #e2d4cf!important;border-radius:14px!important;background:#fbf8f6!important;cursor:pointer;
  transition:transform .2s,box-shadow .2s,border-color .2s;width:fit-content;max-width:100%}
-.st-key-qopts label::before{content:counter(opt,upper-alpha)!important;flex:0 0 36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:700 15px 'Playfair Display',serif;color:#722f37;background:#fff;border:1.5px solid #C9A24B}
-.st-key-qopts label:hover{transform:translateX(6px);border-color:#C9A24B!important;background:#fff!important}
-.st-key-qopts label:not(:has(input:checked)) *{color:#2a1a1d!important;-webkit-text-fill-color:#2a1a1d!important;opacity:1!important}
-.st-key-qopts label:has(input:checked){background:linear-gradient(120deg,#4a1520,#8a2f3f)!important;border-color:#C9A24B!important;transform:translateX(8px);box-shadow:0 10px 26px rgba(74,21,32,.35)}
-.st-key-qopts label:has(input:checked) *{color:#fff!important;-webkit-text-fill-color:#fff!important}
-.st-key-qopts label:has(input:checked)::before{background:#C9A24B;color:#3b0f18;border-color:#f6e3b5;transform:scale(1.1)}
-.st-key-qopts label p{font-size:16.5px;line-height:1.4;margin:0}
+.st-key-qopts [role=radiogroup] label::before{content:counter(opt,upper-alpha)!important;flex:0 0 36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:700 15px 'Playfair Display',serif;color:#722f37;background:#fff;border:1.5px solid #C9A24B}
+.st-key-qopts [role=radiogroup] label:hover{transform:translateX(6px);border-color:#C9A24B!important;background:#fff!important}
+.st-key-qopts [role=radiogroup] label:not(:has(input:checked)) *{color:#2a1a1d!important;-webkit-text-fill-color:#2a1a1d!important;opacity:1!important}
+.st-key-qopts [role=radiogroup] label:has(input:checked){background:linear-gradient(120deg,#4a1520,#8a2f3f)!important;border-color:#C9A24B!important;transform:translateX(8px);box-shadow:0 10px 26px rgba(74,21,32,.35)}
+.st-key-qopts [role=radiogroup] label:has(input:checked) *{color:#fff!important;-webkit-text-fill-color:#fff!important}
+.st-key-qopts [role=radiogroup] label:has(input:checked)::before{background:#C9A24B;color:#3b0f18;border-color:#f6e3b5;transform:scale(1.1)}
+.st-key-qopts [role=radiogroup] label p{font-size:16.5px;line-height:1.4;margin:0}
 @media (max-width:640px){
- [class*="st-key-star_"] label{width:34px!important;min-width:34px!important;height:34px!important}
- .st-key-qopts label{width:100%!important;padding:11px 12px!important;gap:10px!important}
- .st-key-qopts label::before{flex:0 0 30px;height:30px;font-size:13px}
- .st-key-qopts label p{font-size:15px}
+ [class*="st-key-star_"] [role=radiogroup] label{width:34px!important;min-width:34px!important;height:34px!important}
+ .st-key-qopts [role=radiogroup] label{width:100%!important;padding:11px 12px!important;gap:10px!important}
+ .st-key-qopts [role=radiogroup] label::before{flex:0 0 30px;height:30px;font-size:13px}
+ .st-key-qopts [role=radiogroup] label p{font-size:15px}
 }
 """
 
