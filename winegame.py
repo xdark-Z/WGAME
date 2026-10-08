@@ -494,6 +494,7 @@ def init():
     CREATE TABLE IF NOT EXISTS starts(event_id INTEGER, user_id INTEGER, set_no INTEGER, inicio TEXT, PRIMARY KEY(event_id, user_id, set_no));
     CREATE TABLE IF NOT EXISTS drafts(event_id INTEGER, user_id INTEGER, question_id INTEGER, elegida TEXT, PRIMARY KEY(event_id, user_id, question_id));
     CREATE TABLE IF NOT EXISTS fnames(event_id INTEGER, form_no INTEGER, nombre TEXT, PRIMARY KEY(event_id, form_no));
+    CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, role TEXT, uid INTEGER, state TEXT, ts TEXT);
     CREATE TABLE IF NOT EXISTS wines(event_id INTEGER, form_no INTEGER, data TEXT, ts TEXT,
         PRIMARY KEY(event_id, form_no));
     """)
@@ -1320,7 +1321,78 @@ def admin_nav():
             st.rerun()
     return pages[cur][1]
 
+# ---------------- Sesion persistente (sobrevive a F5 / recargar en celular o computador) ----------------
+import secrets
+
+def _snapshot():
+    """Estado minimo que hay que recordar: pagina del admin, pregunta actual y marcas del test."""
+    ss = st.session_state
+    d = {"page": ss.get("page")}
+    for k, v in list(ss.items()):
+        if k.startswith("cur_") and isinstance(v, int):
+            d[k] = v
+        elif k.startswith("flg_") and isinstance(v, set):
+            d[k] = sorted(v)
+    return json.dumps(d, ensure_ascii=False)
+
+def restore_session():
+    ss = st.session_state
+    tk = st.query_params.get("s")
+    if "role" in ss or not tk:
+        return
+    try:
+        r = df("SELECT role, uid, state, ts FROM sessions WHERE token=?", (tk,))
+        if r.empty or not r.role[0] or (datetime.now() - datetime.strptime(r.ts[0], "%Y-%m-%d %H:%M:%S")).days > 30:
+            st.query_params.pop("s", None)
+            return
+        ss.role = r.role[0]
+        if pd.notna(r.uid[0]):
+            ss.uid = int(r.uid[0])
+        ss._tk = tk
+        d = json.loads(r.state[0] or "{}")
+        for k, v in d.items():
+            if k == "page":
+                if v:
+                    ss.page = v
+            elif k.startswith("flg_"):
+                ss[k] = set(v)
+            else:
+                ss[k] = v
+        ss._snap = r.state[0]
+    except Exception:
+        pass
+
+def persist_session():
+    ss = st.session_state
+    if "role" not in ss:
+        return
+    try:
+        if "_tk" not in ss:
+            ss._tk = secrets.token_urlsafe(16)
+        if st.query_params.get("s") != ss._tk:
+            st.query_params["s"] = ss._tk
+        snap = _snapshot()
+        uid = ss.get("uid")
+        sig = f"{ss.role}|{uid}|{snap}"
+        if ss.get("_sig") != sig:
+            run("""INSERT INTO sessions VALUES(?,?,?,?,?) ON CONFLICT(token) DO UPDATE
+                   SET role=excluded.role, uid=excluded.uid, state=excluded.state, ts=excluded.ts""",
+                (ss._tk, ss.role, uid, snap, now()))
+            ss._sig = sig
+    except Exception:
+        pass
+
+def end_session():
+    tk = st.session_state.get("_tk")
+    if tk:
+        try:
+            run("DELETE FROM sessions WHERE token=?", (tk,))
+        except Exception:
+            pass
+    st.query_params.clear()
+
 # ---------------- Main ----------------
+restore_session()
 st.markdown(HERO if "role" in st.session_state else HERO_LOGIN, unsafe_allow_html=True)
 if "role" not in st.session_state:
     login()
@@ -1330,6 +1402,10 @@ else:
     run_page = admin_nav() if st.session_state.role == "admin" else user_app
     st.sidebar.divider()
     if st.sidebar.button("Cerrar sesión", icon=":material/logout:", key="logout", width="stretch"):
+        end_session()
         st.session_state.clear()
         st.rerun()
-    run_page()
+    try:
+        run_page()
+    finally:
+        persist_session()
