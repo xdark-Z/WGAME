@@ -306,6 +306,34 @@ html,body,.stApp{color-scheme:light!important}
 .st-key-cta button:hover{transform:translateY(-3px) scale(1.04)!important}
 @keyframes ctaGlow{0%,100%{box-shadow:0 6px 18px rgba(114,47,55,.35),0 0 0 0 rgba(201,162,75,.65)}50%{box-shadow:0 10px 26px rgba(114,47,55,.5),0 0 0 16px rgba(201,162,75,0)}}
 .st-key-adminbox{margin-top:26px;opacity:.9}
+
+/* ---- boton Quiero participar centrado ---- */
+.st-key-cta{display:flex!important;flex-direction:column!important;align-items:center!important;width:100%!important}
+.st-key-cta [data-testid=stElementContainer],.st-key-cta [data-testid=stButton]{display:flex!important;justify-content:center!important;width:100%!important}
+.st-key-cta button{margin:0 auto!important}
+/* ---- transicion "descorche": el vino sube, aparece el saludo y se desvanece ---- */
+.splash{position:fixed;inset:0;z-index:999999;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;
+ background:#240810;border-radius:28px;overflow:hidden;animation:splOut 2.5s ease forwards}
+.splash .pour{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(180deg,#8a2f3f,#3f1019);animation:pourUp 1.2s cubic-bezier(.5,0,.2,1) forwards}
+.splash .pour:before{content:"";position:absolute;left:0;right:0;top:-14px;height:28px;background:radial-gradient(ellipse at 50% 100%,#8a2f3f 60%,transparent 62%) 0 0/60px 28px repeat-x;animation:wave 1.4s linear infinite}
+.splash>*:not(.pour){position:relative;z-index:2;opacity:0;animation:fup .8s ease .5s forwards}
+.splash .sg{font-size:64px;animation:fup .8s ease .4s forwards,swirl 2s ease-in-out 1s infinite}
+.splash .st1{font:700 clamp(24px,7vw,38px) 'Playfair Display',serif;color:#f6e3b5}
+.splash .st2{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#d9b8be}
+@keyframes pourUp{to{height:112%}}
+@keyframes splOut{0%,64%{opacity:1;visibility:visible}100%{opacity:0;visibility:hidden}}
+/* ---- registro interactivo: copa que se llena ---- */
+.glass{display:flex;flex-direction:column;align-items:center;margin:2px 0 6px}
+.glass svg{width:118px;height:auto;filter:drop-shadow(0 8px 14px rgba(74,21,32,.25))}
+.glass .gwv{animation:gwv 2.4s linear infinite}
+@keyframes gwv{to{transform:translateX(60px)}}
+.gmsg{font:600 13px 'Inter',sans-serif;letter-spacing:2.5px;text-transform:uppercase;color:#722f37;margin-top:4px}
+.gbar{width:min(260px,70%);height:6px;border-radius:99px;background:#eadfd9;overflow:hidden;margin-top:8px}
+.gbar i{display:block;height:100%;background:linear-gradient(90deg,#8a2f3f,#C9A24B);transition:width .9s}
+.st-key-regbox{background:#fff;border:1px solid rgba(201,162,75,.45);border-top:4px solid #C9A24B;border-radius:18px;padding:16px 20px 18px;box-shadow:0 12px 34px rgba(74,21,32,.14)}
+.st-key-regbox>*{animation:optin .6s cubic-bezier(.2,.9,.3,1) both}
+.st-key-regbox>*:nth-child(2){animation-delay:.15s}.st-key-regbox>*:nth-child(3){animation-delay:.3s}.st-key-regbox>*:nth-child(4){animation-delay:.45s}.st-key-regbox>*:nth-child(5){animation-delay:.6s}.st-key-regbox>*:nth-child(6){animation-delay:.75s}
+.st-key-regbox button{font-family:'Playfair Display',serif;font-size:18px!important;min-height:52px;margin:0 auto;display:flex}
 /* ---- rendimiento en celulares: sin blur, sin animaciones pesadas ---- */
 @media (max-width:900px),(hover:none){
  .block-container{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:rgba(253,247,244,.98)!important;animation:none!important;box-shadow:0 10px 30px rgba(0,0,0,.4)!important}
@@ -1064,29 +1092,52 @@ def sets_ui(qs, eid, uid, email):
     quiz_ui(sq, eid, uid, k, deadline)
 
 # ---------------- Modo usuario ----------------
+def splash(t1, t2=""):
+    """Transicion animada a pantalla completa (vino que sube + saludo)."""
+    return (f'<div class="splash"><div class="pour"></div><div class="sg">🍷</div>'
+            f'<div class="st1">{_html.escape(t1)}</div><div class="st2">{_html.escape(t2)}</div></div>')
+
+def glass(n, total=3):
+    """Copa SVG que se llena segun los datos completados."""
+    ty = 96 - (n / total) * 84
+    msg = ["Vamos a servirte una copa", "Descorchando...", "Decantando...", "¡Salud! Todo listo"][n]
+    bowl = "M22 8H98C98 66 84 98 60 98C36 98 22 66 22 8Z"
+    return (f'<div class="glass"><svg viewBox="0 0 120 160"><defs><clipPath id="gb"><path d="{bowl}"/></clipPath>'
+            f'<linearGradient id="gw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b3202a"/><stop offset="1" stop-color="#4a1520"/></linearGradient></defs>'
+            f'<g clip-path="url(#gb)"><g style="transform:translateY({ty:.0f}px);transition:transform 1.1s cubic-bezier(.3,.9,.3,1)"><g class="gwv">'
+            f'<path d="M-60 8q15 -8 30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0V120H-60Z" fill="url(#gw)"/></g></g></g>'
+            f'<path d="{bowl}" fill="none" stroke="#C9A24B" stroke-width="3" stroke-linejoin="round"/>'
+            f'<path d="M60 98V142" stroke="#C9A24B" stroke-width="4" stroke-linecap="round"/>'
+            f'<ellipse cx="60" cy="146" rx="28" ry="6" fill="none" stroke="#C9A24B" stroke-width="3"/></svg>'
+            f'<div class="gmsg">{msg}</div><div class="gbar"><i style="width:{int(n / total * 100)}%"></i></div></div>')
+
 def register():
+    st.markdown(splash("Descorchando tu experiencia", "Prepara tu copa"), unsafe_allow_html=True)
     st.subheader("Registro de participante")
-    with st.form("reg"):
-        # una fila de columnas por par de campos: en el celular se apilan en orden (Nombre, Apellido, Edad, Género)
+    with st.container(key="regbox"):
+        gl = st.empty()
         a1, a2 = st.columns(2)
-        nombre = a1.text_input("Nombre")
-        apellido = a2.text_input("Apellido")
+        nombre = a1.text_input("Nombre", key="rg_n")
+        apellido = a2.text_input("Apellido", key="rg_a")
         b1, b2 = st.columns(2)
-        edad = b1.number_input("Edad", 10, 120, 18)
-        genero = b2.selectbox("Género", ["Hombre", "Mujer", "Otro"])
-        email = st.text_input("Correo electrónico")
-        if st.form_submit_button("Continuar"):
-            email = email.strip().lower()
-            if not (nombre.strip() and apellido.strip() and "@" in email):
+        edad = b1.number_input("Edad", 10, 120, 18, key="rg_e")
+        genero = b2.selectbox("Género", ["Hombre", "Mujer", "Otro"], key="rg_g")
+        email = st.text_input("Correo electrónico", key="rg_m", placeholder="tucorreo@ejemplo.com")
+        em = email.strip().lower()
+        n = int(bool(nombre.strip())) + int(bool(apellido.strip())) + int("@" in em and "." in em)
+        gl.markdown(glass(n), unsafe_allow_html=True)
+        if st.button("¡Salud! Entrar a la cata", icon=":material/wine_bar:", type="primary", key="rg_go"):
+            if n < 3:
                 st.error("Complete nombre, apellido y un correo válido.")
                 return
-            ex = df("SELECT id FROM users WHERE email=?", (email,))
+            ex = df("SELECT id FROM users WHERE email=?", (em,))
             if len(ex):
                 st.session_state.uid = int(ex.id[0])
             else:
                 st.session_state.uid = run(
                     "INSERT INTO users(nombre,apellido,edad,email,genero,creado) VALUES(?,?,?,?,?,?)",
-                    (nombre.strip(), apellido.strip(), int(edad), email, genero, now()))
+                    (nombre.strip(), apellido.strip(), int(edad), em, genero, now()))
+            st.session_state.welcome = nombre.strip()
             st.rerun()
 
 def quiz_ui(qs, eid, uid, sno, deadline):
@@ -1168,6 +1219,9 @@ def user_app():
     uid = st.session_state.uid
     u = q_user(uid).iloc[0]
     who(u.nombre, u.apellido)
+    _w = st.session_state.pop("welcome", None)
+    if _w:
+        st.markdown(splash(f"¡Salud, {_w}!", "Que comience la cata"), unsafe_allow_html=True)
     ev = q_active()
     if ev.empty:
         st.info("No hay un evento activo en este momento.")
