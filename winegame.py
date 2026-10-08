@@ -334,6 +334,13 @@ html,body,.stApp{color-scheme:light!important}
 .st-key-regbox>*{animation:optin .6s cubic-bezier(.2,.9,.3,1) both}
 .st-key-regbox>*:nth-child(2){animation-delay:.15s}.st-key-regbox>*:nth-child(3){animation-delay:.3s}.st-key-regbox>*:nth-child(4){animation-delay:.45s}.st-key-regbox>*:nth-child(5){animation-delay:.6s}.st-key-regbox>*:nth-child(6){animation-delay:.75s}
 .st-key-regbox button{font-family:'Playfair Display',serif;font-size:18px!important;min-height:52px;margin:0 auto;display:flex}
+.glass .gfill{transition:transform .55s cubic-bezier(.3,.9,.3,1)}
+.glass .bb{fill:rgba(255,255,255,.35);animation:bub 2.6s ease-in infinite}.glass .b2{animation-delay:.9s}.glass .b3{animation-delay:1.6s}
+@keyframes bub{0%{transform:translateY(20px);opacity:0}30%{opacity:.8}100%{transform:translateY(-34px);opacity:0}}
+.glass.pop svg{animation:gpop .5s ease}
+@keyframes gpop{0%{transform:scale(1)}40%{transform:scale(1.08) rotate(-3deg)}100%{transform:scale(1)}}
+.glass.full svg{filter:drop-shadow(0 0 18px rgba(201,162,75,.75))}.glass.full .gmsg{color:#b3202a}
+.st-key-regbox [data-testid=stElementContainer]:has(iframe){position:absolute;width:0;height:0;overflow:hidden;margin:0;padding:0}
 /* ---- rendimiento en celulares: sin blur, sin animaciones pesadas ---- */
 @media (max-width:900px),(hover:none){
  .block-container{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:rgba(253,247,244,.98)!important;animation:none!important;box-shadow:0 10px 30px rgba(0,0,0,.4)!important}
@@ -1097,25 +1104,47 @@ def splash(t1, t2=""):
     return (f'<div class="splash"><div class="pour"></div><div class="sg">🍷</div>'
             f'<div class="st1">{_html.escape(t1)}</div><div class="st2">{_html.escape(t2)}</div></div>')
 
-def glass(n, total=3):
-    """Copa SVG que se llena segun los datos completados."""
-    ty = 96 - (n / total) * 84
-    msg = ["Vamos a servirte una copa", "Descorchando...", "Decantando...", "¡Salud! Todo listo"][n]
+def glass():
+    """Copa SVG estatica; el JS de register() la llena en vivo mientras se escribe."""
     bowl = "M22 8H98C98 66 84 98 60 98C36 98 22 66 22 8Z"
     return (f'<div class="glass"><svg viewBox="0 0 120 160"><defs><clipPath id="gb"><path d="{bowl}"/></clipPath>'
             f'<linearGradient id="gw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b3202a"/><stop offset="1" stop-color="#4a1520"/></linearGradient></defs>'
-            f'<g clip-path="url(#gb)"><g style="transform:translateY({ty:.0f}px);transition:transform 1.1s cubic-bezier(.3,.9,.3,1)"><g class="gwv">'
-            f'<path d="M-60 8q15 -8 30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0V120H-60Z" fill="url(#gw)"/></g></g></g>'
+            f'<g clip-path="url(#gb)"><g class="gfill" style="transform:translateY(100px)"><g class="gwv">'
+            f'<path d="M-60 8q15 -8 30 0t30 0t30 0t30 0t30 0t30 0t30 0t30 0V120H-60Z" fill="url(#gw)"/></g>'
+            f'<circle class="bb b1" cx="45" cy="70" r="2.5"/><circle class="bb b2" cx="70" cy="80" r="2"/><circle class="bb b3" cx="58" cy="60" r="1.6"/></g></g>'
             f'<path d="{bowl}" fill="none" stroke="#C9A24B" stroke-width="3" stroke-linejoin="round"/>'
             f'<path d="M60 98V142" stroke="#C9A24B" stroke-width="4" stroke-linecap="round"/>'
             f'<ellipse cx="60" cy="146" rx="28" ry="6" fill="none" stroke="#C9A24B" stroke-width="3"/></svg>'
-            f'<div class="gmsg">{msg}</div><div class="gbar"><i style="width:{int(n / total * 100)}%"></i></div></div>')
+            f'<div class="gmsg">Vamos a servirte una copa</div><div class="gbar"><i style="width:0%"></i></div></div>')
+
+GLASS_JS = """<script>
+(function(){
+ var P=window.parent.document, last=-1;
+ function inp(l){return P.querySelector('input[aria-label="'+l+'"]');}
+ function len(l){var e=inp(l);return e?e.value.trim().length:0;}
+ function tick(){
+  var g=P.querySelector('.gfill'); if(!g) return;
+  var em=(inp('Correo electrónico')||{value:''}).value.trim();
+  var ok=/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(em);
+  var p=Math.min(1,len('Nombre')/4)/3+Math.min(1,len('Apellido')/4)/3+(ok?1:Math.min(em.length,8)/8*.8)/3;
+  if(ok&&len('Nombre')>0&&len('Apellido')>0) p=1;
+  p=Math.round(p*100)/100; if(p===last) return; last=p;
+  g.style.transform='translateY('+(100-p*88)+'px)';
+  var m=P.querySelector('.gmsg'), bar=P.querySelector('.gbar i'), gl=P.querySelector('.glass');
+  if(bar) bar.style.width=Math.round(p*100)+'%';
+  if(m) m.textContent=p===0?'Vamos a servirte una copa':p<.34?'Descorchando...':p<.67?'Decantando...':p<1?'Casi lista...':'¡Salud! Todo listo';
+  if(gl){gl.classList.remove('pop');void gl.offsetWidth;gl.classList.add('pop');gl.classList.toggle('full',p===1);}
+ }
+ setInterval(tick,150);
+})();
+</script>"""
 
 def register():
     st.markdown(splash("Descorchando tu experiencia", "Prepara tu copa"), unsafe_allow_html=True)
     st.subheader("Registro de participante")
     with st.container(key="regbox"):
-        gl = st.empty()
+        st.markdown(glass(), unsafe_allow_html=True)
+        components.html(GLASS_JS, height=0)
         a1, a2 = st.columns(2)
         nombre = a1.text_input("Nombre", key="rg_n")
         apellido = a2.text_input("Apellido", key="rg_a")
@@ -1125,7 +1154,6 @@ def register():
         email = st.text_input("Correo electrónico", key="rg_m", placeholder="tucorreo@ejemplo.com")
         em = email.strip().lower()
         n = int(bool(nombre.strip())) + int(bool(apellido.strip())) + int("@" in em and "." in em)
-        gl.markdown(glass(n), unsafe_allow_html=True)
         if st.button("¡Salud! Entrar a la cata", icon=":material/wine_bar:", type="primary", key="rg_go"):
             if n < 3:
                 st.error("Complete nombre, apellido y un correo válido.")
