@@ -252,6 +252,21 @@ html,body{-webkit-text-size-adjust:100%;text-size-adjust:100%}
  .st-key-qopts [role=radiogroup]>label:hover,[data-testid=stRadio] label[data-baseweb=radio]:hover{transform:none}
  .stButton>button:hover,.stFormSubmitButton>button:hover,.stDownloadButton>button:hover{transform:none}
 }
+
+/* ---- forzar tema claro: el modo oscuro del celu/navegador no debe alterar colores ---- */
+html,body,.stApp{color-scheme:light!important}
+.st-key-qopts [role=radiogroup]>label:not(:has(input:checked)),.st-key-qopts [role=radiogroup]>label:not(:has(input:checked)) *{color:#2a1a1d!important;opacity:1}
+.st-key-qopts [role=radiogroup]>label{background-color:#fbf8f6}
+.st-key-qopts [role=radiogroup]>label:has(input:checked){background-color:#6b1f2c}
+.block-container [data-testid=stRadio] label,.block-container [data-testid=stCheckbox] label,.block-container [data-testid=stRadio] label p,.block-container [data-testid=stCheckbox] label p{color:#2a1a1d}
+.block-container input,.block-container textarea,.block-container [data-baseweb=select]>div,.block-container [data-baseweb=input],.block-container [data-baseweb=textarea]{background-color:#fff!important;color:#2a1a1d!important;-webkit-text-fill-color:#2a1a1d}
+.block-container [data-testid=stCaptionContainer],.block-container [data-testid=stCaptionContainer] p{color:#6b4a50!important}
+
+.st-key-qopts label[data-baseweb=radio]{background-color:#fbf8f6!important;border:1.5px solid #e2d4cf!important;border-radius:14px;display:flex!important;align-items:center;gap:14px;padding:14px 18px}
+.st-key-qopts label[data-baseweb=radio]>div:first-child{display:none!important}
+.st-key-qopts label[data-baseweb=radio]:not(:has(input:checked)) :is(p,span,div){color:#2a1a1d!important;-webkit-text-fill-color:#2a1a1d!important;opacity:1!important}
+.st-key-qopts label[data-baseweb=radio]:has(input:checked){background:linear-gradient(120deg,#4a1520,#8a2f3f)!important;border-color:#C9A24B!important}
+.st-key-qopts label[data-baseweb=radio]:has(input:checked) :is(p,span,div){color:#fff!important;-webkit-text-fill-color:#fff!important}
 """
 
 BUBBLES_JS = """<script>
