@@ -379,6 +379,12 @@ html,body,.stApp{color-scheme:light!important}
 /* la copa se llena cuando la tarjeta de resultado aparece en pantalla (celular y computador) */
 .res.arm:not(.go) *,.res.arm:not(.go) .num:after,.res.arm:not(.go) .pcl:after{animation-play-state:paused!important}
 .res .liq{will-change:transform}
+.wcard{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 14px}
+.wcard .wi{background:#fbf8f6;border:1px solid rgba(201,162,75,.5);border-radius:12px;padding:9px 14px;text-align:left}
+.wcard .wi span{display:block;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8a6a70}
+.wcard .wi b{display:block;font-size:15px;color:#2a1a1d;font-weight:600;word-break:break-word}
+.wcard .wi.full{grid-column:1/-1}
+@media (max-width:640px){.wcard{grid-template-columns:1fr}}
 /* ===== arreglos: alternativas siempre a todo el ancho; 3 pasos del inicio iguales ===== */
 .st-key-qopts,.st-key-qopts [data-testid=stRadio],.st-key-qopts [data-testid=stRadio]>div{width:100%!important;max-width:100%!important}
 .st-key-qopts [role=radiogroup] label,.st-key-qopts label[data-baseweb=radio]{width:100%!important;max-width:100%!important;box-sizing:border-box!important;transform:none!important;animation:none!important}
@@ -882,11 +888,27 @@ FIELD_ICON = {"lugar": "location_on", "fecha": "calendar_month", "nombre": "wine
     "persistencia": "timer", "astringencia": "texture", "alcohol": "liquor", "balance": "balance", "sabores": "restaurant",
     "maridaje": "dinner_dining", "conclusion": "rate_review", "precio": "payments", "calificacion": "star"}
 
-def form_widgets(key, d):
+def wine_card(base):
+    """Datos del vino (los carga el admin): los participantes solo los ven."""
+    if not base:
+        st.info("El administrador aún no cargó los datos de este vino.")
+        return
+    items = ""
+    for l, k, t, o in SECTIONS[0][1]:
+        v = base.get(k, "")
+        v = ", ".join(map(str, v)) if isinstance(v, list) else str(v)
+        items += f'<div class="wi{" full" if t == "m" else ""}"><span>{_html.escape(l)}</span><b>{_html.escape(v) if v else "-"}</b></div>'
+    st.markdown(f'<div class="wcard">{items}</div>', unsafe_allow_html=True)
+
+def form_widgets(key, d, base=None):
+    """base != None -> la seccion 'Datos del vino' se muestra de solo lectura (vista del participante)."""
     out = {}
     for sec, fs in SECTIONS:
         st.markdown(f'<div class="fsec"><span class="ico"><svg viewBox="0 0 24 24">{SEC_ICON.get(sec, "")}</svg></span><span>{sec}</span></div>',
                     unsafe_allow_html=True)
+        if base is not None and sec == SECTIONS[0][0]:
+            wine_card(base)
+            continue
         cols, j = st.columns(2), 0
         for l, k, t, opts in fs:
             w, cur = f"{key}_{k}", d.get(k, "")
@@ -1291,7 +1313,8 @@ def user_app():
             d = json.loads(ex.data[0]) if len(ex) else {}
             with st.expander(fnames(eid).get(k, f"Formulario {k}") + (" (completado)" if d else "")):
                 with st.container():
-                    data = form_widgets(f"u{k}", d)
+                    _w = df("SELECT data FROM wines WHERE event_id=? AND form_no=?", (eid, k))
+                    data = form_widgets(f"u{k}", d, base=json.loads(_w.data[0]) if len(_w) else {})
                     if st.button("Guardar formulario", type="primary", key=f"sv_u{k}"):
                         run("""INSERT INTO forms VALUES(?,?,?,?,?) ON CONFLICT(event_id,user_id,form_no)
                                DO UPDATE SET data=excluded.data, ts=excluded.ts""",
@@ -1505,13 +1528,18 @@ def pag_formularios():
             nm = fnames(eid); k = st.selectbox("Formulario N°", list(range(1, n + 1)), format_func=lambda x: nm.get(x, f"Formulario {x}"))
             ex = df("SELECT data FROM wines WHERE event_id=? AND form_no=?", (eid, k))
             d = json.loads(ex.data[0]) if len(ex) else {}
+            st.caption("Los datos del vino son obligatorios: los participantes los verán sin poder editarlos.")
             with st.container():
                 data = form_widgets(f"a{eid}_{k}", d)
                 if st.button("Guardar ficha", type="primary", key=f"sv_a{eid}_{k}"):
-                    run("""INSERT INTO wines VALUES(?,?,?,?) ON CONFLICT(event_id,form_no)
-                           DO UPDATE SET data=excluded.data, ts=excluded.ts""",
-                        (eid, k, json.dumps(data, ensure_ascii=False), now()))
-                    st.success("Ficha guardada")
+                    falta = [fld[0] for fld in SECTIONS[0][1] if data.get(fld[1]) in ("", None, [])]
+                    if falta:
+                        st.error("Los datos del vino son obligatorios. Falta: " + ", ".join(falta))
+                    else:
+                        run("""INSERT INTO wines VALUES(?,?,?,?) ON CONFLICT(event_id,form_no)
+                               DO UPDATE SET data=excluded.data, ts=excluded.ts""",
+                            (eid, k, json.dumps(data, ensure_ascii=False), now()))
+                        st.success("Ficha guardada")
     with t2:
         show(forms_df(eid))
 
