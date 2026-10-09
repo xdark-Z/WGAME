@@ -379,6 +379,14 @@ html,body,.stApp{color-scheme:light!important}
 /* la copa se llena cuando la tarjeta de resultado aparece en pantalla (celular y computador) */
 .res.arm:not(.go) *,.res.arm:not(.go) .num:after,.res.arm:not(.go) .pcl:after{animation-play-state:paused!important}
 .res .liq{will-change:transform}
+/* ===== arreglos: alternativas siempre a todo el ancho; 3 pasos del inicio iguales ===== */
+.st-key-qopts,.st-key-qopts [data-testid=stRadio],.st-key-qopts [data-testid=stRadio]>div{width:100%!important;max-width:100%!important}
+.st-key-qopts [role=radiogroup] label,.st-key-qopts label[data-baseweb=radio]{width:100%!important;max-width:100%!important;box-sizing:border-box!important;transform:none!important;animation:none!important}
+.st-key-qopts [role=radiogroup] label>div:last-child,.st-key-qopts label[data-baseweb=radio]>div:last-child{flex:1 1 auto!important;min-width:0!important}
+.st-key-qopts [role=radiogroup] label p{white-space:normal!important;word-break:normal!important;overflow-wrap:break-word!important;text-align:left}
+.wsteps{display:grid!important;grid-template-columns:repeat(3,1fr);gap:12px;max-width:620px;margin:6px auto 18px!important}
+.wsteps div{min-width:0!important;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+@media (max-width:520px){.wsteps{gap:8px}.wsteps div{padding:10px 6px!important;font-size:11px!important;letter-spacing:.5px!important}}
 """
 
 BUBBLES_JS = """<script>
@@ -457,12 +465,16 @@ function tick(){const r=Math.max(0,Math.floor((E-Date.now())/1000));
 el.innerHTML='Tiempo restante&nbsp;'+z(Math.floor(r/3600))+':'+z(Math.floor(r%3600/60))+':'+z(r%60);el.className=r<60?'low':'';}
 tick();setInterval(tick,1000);</script>"""
 
+INPUTMODE_JS = """<script>(function(){const P=window.parent,D=P.document;if(P.__imode)return;P.__imode=1;
+function f(){D.querySelectorAll('[data-baseweb=select] input').forEach(function(i){if(i.getAttribute('inputmode')!=='none')i.setAttribute('inputmode','none');});}
+new P.MutationObserver(f).observe(D.body,{childList:true,subtree:true});f();})();</script>"""
+
 def theme():
     st.markdown("<style>" + FONTS + CSS.replace("WINE", WINE).replace("GOLD", GOLD) + "</style>", unsafe_allow_html=True)
     try:  # forma moderna: el script corre directo en la pagina
-        st.html(BUBBLES_JS, unsafe_allow_javascript=True, width="content")
+        st.html(BUBBLES_JS + INPUTMODE_JS, unsafe_allow_javascript=True, width="content")
     except TypeError:  # Streamlit antiguo: respaldo con componente (iframe)
-        components.html(BUBBLES_JS, height=0)
+        components.html(BUBBLES_JS + INPUTMODE_JS, height=0)
 
 def show(d, raw=()):
     """Tabla con diseño propio (color vino). raw = columnas cuyo contenido es HTML de confianza."""
@@ -821,8 +833,11 @@ SECTIONS = [
 ]
 LABEL = {f[1]: f[0] for _, fs in SECTIONS for f in fs}
 
+OWN = "✎ Escribir respuesta propia"
+
 def pick(box, label, opts, cur, key, multi=False):
-    """Lista desplegable con opciones; el usuario tambien puede escribir su propia respuesta."""
+    """Lista desplegable sin teclado. La primera opcion es 'Escribir respuesta propia' y recien ahi aparece la casilla de texto."""
+    opts = list(opts)
     if multi:
         if isinstance(cur, list):
             vals = cur
@@ -830,26 +845,22 @@ def pick(box, label, opts, cur, key, multi=False):
             vals = [x.strip() for x in str(cur).split(",") if x.strip()]
         else:
             vals = []
-    else:
-        vals = [str(cur)] if cur not in ("", None) else []
-    allopts = list(opts) + [v for v in vals if v not in opts]
-    try:
-        if multi:
-            return box.multiselect(label, allopts, default=vals, key=key, accept_new_options=True,
-                                   placeholder="Elija una o más opciones, o escriba la suya")
-        r = box.selectbox(label, allopts, index=allopts.index(vals[0]) if vals else None, key=key,
-                          accept_new_options=True, placeholder="Elija una opción o escriba la suya")
-        return r or ""
-    except TypeError:  # version antigua de Streamlit: opcion "Otra" con casilla de texto
-        if multi:
-            sel = box.multiselect(label, allopts, default=vals, key=key)
-            own = box.text_input(f"{label}: otras (separe con coma)", key=key + "_o")
-            return sel + [x.strip() for x in own.split(",") if x.strip()]
-        OTRA = "Otra (escribir abajo)"
-        r = box.selectbox(label, allopts + [OTRA], index=allopts.index(vals[0]) if vals else None, key=key)
-        if r == OTRA:
-            return box.text_input(f"{label}: su respuesta", key=key + "_o")
-        return r or ""
+        custom = [v for v in vals if v not in opts]
+        sel = box.multiselect(label, [OWN] + opts, default=[v for v in vals if v in opts] + ([OWN] if custom else []),
+                              key=key, placeholder="Elija una o más opciones")
+        res = [v for v in sel if v != OWN]
+        if OWN in sel:
+            t = box.text_input(f"{label}: tus respuestas (separe con coma)", ", ".join(custom), key=key + "_o")
+            res += [x.strip() for x in t.split(",") if x.strip()]
+        return res
+    v = str(cur) if cur not in ("", None) else ""
+    own = v != "" and v not in opts
+    allopts = [OWN] + opts
+    r = box.selectbox(label, allopts, index=0 if own else (allopts.index(v) if v else None), key=key,
+                      placeholder="Elija una opción")
+    if r == OWN:
+        return box.text_input(f"{label}: su respuesta", v if own else "", key=key + "_o")
+    return r or ""
 
 def parse_date(s):
     try:
@@ -1279,9 +1290,9 @@ def user_app():
             ex = df("SELECT data FROM forms WHERE event_id=? AND user_id=? AND form_no=?", (eid, uid, k))
             d = json.loads(ex.data[0]) if len(ex) else {}
             with st.expander(fnames(eid).get(k, f"Formulario {k}") + (" (completado)" if d else "")):
-                with st.form(f"f{k}"):
+                with st.container():
                     data = form_widgets(f"u{k}", d)
-                    if st.form_submit_button("Guardar formulario"):
+                    if st.button("Guardar formulario", type="primary", key=f"sv_u{k}"):
                         run("""INSERT INTO forms VALUES(?,?,?,?,?) ON CONFLICT(event_id,user_id,form_no)
                                DO UPDATE SET data=excluded.data, ts=excluded.ts""",
                             (eid, uid, k, json.dumps(data, ensure_ascii=False), now()))
@@ -1494,9 +1505,9 @@ def pag_formularios():
             nm = fnames(eid); k = st.selectbox("Formulario N°", list(range(1, n + 1)), format_func=lambda x: nm.get(x, f"Formulario {x}"))
             ex = df("SELECT data FROM wines WHERE event_id=? AND form_no=?", (eid, k))
             d = json.loads(ex.data[0]) if len(ex) else {}
-            with st.form(f"w{eid}_{k}"):
+            with st.container():
                 data = form_widgets(f"a{eid}_{k}", d)
-                if st.form_submit_button("Guardar ficha"):
+                if st.button("Guardar ficha", type="primary", key=f"sv_a{eid}_{k}"):
                     run("""INSERT INTO wines VALUES(?,?,?,?) ON CONFLICT(event_id,form_no)
                            DO UPDATE SET data=excluded.data, ts=excluded.ts""",
                         (eid, k, json.dumps(data, ensure_ascii=False), now()))
