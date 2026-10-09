@@ -1809,6 +1809,11 @@ def _snapshot():
 def restore_session():
     ss = st.session_state
     tk = st.query_params.get("s")
+    if not tk and not st.query_params.get("lo"):
+        try:
+            tk = st.context.cookies.get("bg_tk")
+        except Exception:
+            tk = None
     if "role" in ss or not tk:
         return
     try:
@@ -1860,8 +1865,8 @@ def tk_sync(tk=""):
     """Guarda el token de sesion en el navegador (permanente) y lo recupera si la pestana se cerro."""
     components.html("""<script>(function(){const P=window.parent,TK=%s;let L=null;try{L=P.localStorage}catch(e){return}
 const U=new URL(P.location.href);
-if(U.searchParams.get('lo')){try{L.removeItem('bg_tk')}catch(e){}U.searchParams.delete('lo');P.history.replaceState(null,'',U.toString());return}
-if(TK){try{L.setItem('bg_tk',TK)}catch(e){}return}
+if(U.searchParams.get('lo')){try{L.removeItem('bg_tk')}catch(e){}try{P.document.cookie='bg_tk=; max-age=0; path=/'}catch(e){}U.searchParams.delete('lo');P.history.replaceState(null,'',U.toString());return}
+if(TK){try{L.setItem('bg_tk',TK)}catch(e){}try{P.document.cookie='bg_tk='+TK+'; max-age=315360000; path=/; SameSite=Lax'+(P.location.protocol==='https:'?'; Secure':'')}catch(e){}return}
 if(U.searchParams.get('s'))return;
 let t=null;try{t=L.getItem('bg_tk')}catch(e){}
 if(!t)return;
