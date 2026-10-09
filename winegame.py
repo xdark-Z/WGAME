@@ -108,6 +108,11 @@ h5{letter-spacing:2px;text-transform:uppercase;font-size:15px!important;font-fam
 .st-key-qopts [role=radiogroup]>label:has(input:checked) *{color:#fff!important}
 .st-key-qopts [role=radiogroup]>label:has(input:checked)::before{background:#C9A24B;color:#3b0f18;border-color:#f6e3b5;transform:scale(1.1)}
 .st-key-qopts [role=radiogroup]>label p{font-size:16.5px;line-height:1.4}
+.st-key-qopts,.st-key-qopts [data-testid=stRadio],.st-key-qopts [data-testid=stRadio]>div{width:100%!important;max-width:100%!important;min-width:0!important}
+.st-key-qopts [role=radiogroup]{width:100%!important;align-items:stretch!important}
+.st-key-qopts [role=radiogroup]>label{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important;display:flex!important;flex:0 0 auto!important}
+.st-key-qopts [role=radiogroup]>label>div:not(:first-child){flex:1 1 0!important;min-width:0!important;width:auto!important}
+.st-key-qopts [role=radiogroup]>label p{white-space:normal!important;overflow-wrap:anywhere!important;word-break:normal;max-width:100%}
 .st-key-qopts [role=radiogroup]>label:nth-child(1){animation-delay:0.23s}.st-key-qopts [role=radiogroup]>label:nth-child(2){animation-delay:0.31s}.st-key-qopts [role=radiogroup]>label:nth-child(3){animation-delay:0.39s}.st-key-qopts [role=radiogroup]>label:nth-child(4){animation-delay:0.47s}.st-key-qopts [role=radiogroup]>label:nth-child(5){animation-delay:0.55s}.st-key-qopts [role=radiogroup]>label:nth-child(6){animation-delay:0.63s}.st-key-qopts [role=radiogroup]>label:nth-child(7){animation-delay:0.71s}.st-key-qopts [role=radiogroup]>label:nth-child(8){animation-delay:0.79s}.st-key-qopts [role=radiogroup]>label:nth-child(9){animation-delay:0.87s}.st-key-qopts [role=radiogroup]>label:nth-child(10){animation-delay:0.95s}
 .st-key-qnav{margin-top:6px}.st-key-qnav [data-testid=stButtonGroup]{flex-wrap:wrap;justify-content:center;gap:6px}
 .qleg{text-align:center;font-size:12px;color:#8a6a70;margin:2px 0 6px;letter-spacing:1px}
@@ -1394,7 +1399,11 @@ def quiz_ui(qs, eid, uid, sno, deadline):
     c1, c2, c3 = st.columns(3)
     c1.button("Anterior", icon=":material/arrow_back:", on_click=go, args=(cur - 1,), disabled=cur == 0, width="stretch", key="bprev")
     c2.button("Quitar marca" if qid in flg else "Marcar para revisar", icon=":material/flag:", on_click=flag, args=(qid,), width="stretch", key="bflag")
-    c3.button("Siguiente", icon=":material/arrow_forward:", on_click=go, args=(cur + 1,), disabled=cur == N - 1, width="stretch", key="bnext")
+    send = False
+    if cur == N - 1:
+        send = c3.button("Enviar respuestas", type="primary", icon=":material/send:", width="stretch", key="bsend")
+    else:
+        c3.button("Siguiente", icon=":material/arrow_forward:", on_click=go, args=(cur + 1,), width="stretch", key="bnext")
 
     labels = [f"{i + 1} " + ("⚑" if x in flg else "✓" if x in ans else "○") for i, x in enumerate(qids)]
     st.markdown('<div class="qleg">✓ respondida &nbsp;·&nbsp; ○ en blanco &nbsp;·&nbsp; ⚑ para revisar</div>', unsafe_allow_html=True)
@@ -1408,7 +1417,7 @@ def quiz_ui(qs, eid, uid, sno, deadline):
     blanks = [i + 1 for i, x in enumerate(qids) if x not in ans]
     if blanks:
         st.button(f"Ir a la primera en blanco (N.º {blanks[0]})", icon=":material/skip_next:", on_click=go, args=(blanks[0] - 1,), key="bblank")
-    if st.button("Enviar respuestas", type="primary", key="bsend"):
+    if send:
         if blanks and not ss.get(f"cf_{kk}"):
             ss[f"cf_{kk}"] = True
             st.warning(f"Te faltan {len(blanks)} pregunta(s) en blanco: {', '.join(map(str, blanks))}. Si envías de nuevo, quedarán como erróneas.")
