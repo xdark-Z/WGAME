@@ -317,7 +317,18 @@ html,body,.stApp{color-scheme:light!important}
 .splash .pour{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(180deg,#8a2f3f,#3f1019);animation:pourUp 1.2s cubic-bezier(.5,0,.2,1) forwards}
 .splash .pour:before{content:"";position:absolute;left:0;right:0;top:-14px;height:28px;background:radial-gradient(ellipse at 50% 100%,#8a2f3f 60%,transparent 62%) 0 0/60px 28px repeat-x;animation:wave 1.4s linear infinite}
 .splash>*:not(.pour){position:relative;z-index:2;opacity:0;animation:fup .8s ease .5s forwards}
-.splash .sg{font-size:64px;animation:fup .8s ease .4s forwards,swirl 2s ease-in-out 1s infinite}
+.splash .sg{font-size:0;line-height:0;animation:fup .8s ease .4s forwards}
+.splash .sg svg{display:block;width:120px;height:auto;overflow:visible}
+.splash .sg.pr svg{width:min(290px,80vw)}
+.splash .sg svg.sgl{transform-origin:50% 92%;animation:sgt 2.4s ease-in-out .9s infinite}
+.splash .sfill{animation:sfil 1.5s ease-out .6s both}
+.splash .swv{animation:swv 1.1s linear infinite}
+.splash .sbb{fill:#f6e3b5;opacity:0;animation:sbu 1.6s ease-in infinite}
+.splash .sbb.b2{animation-delay:.5s}.splash .sbb.b3{animation-delay:1s}
+@keyframes sgt{0%,100%{transform:rotate(-6deg)}50%{transform:rotate(6deg)}}
+@keyframes sfil{from{transform:translateY(100px)}to{transform:translateY(32px)}}
+@keyframes swv{to{transform:translateX(-60px)}}
+@keyframes sbu{0%{transform:translateY(0);opacity:0}20%{opacity:.8}100%{transform:translateY(-34px);opacity:0}}
 .splash .st1{font:700 clamp(24px,7vw,38px) 'Playfair Display',serif;color:#f6e3b5}
 .splash .st2{font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#d9b8be}
 @keyframes pourUp{to{height:112%}}
@@ -644,6 +655,8 @@ def init():
     cols = [r[1] for r in c.execute("PRAGMA table_info(questions)")]
     if "alts" not in cols:
         c.execute("ALTER TABLE questions ADD COLUMN alts TEXT")
+    if "telefono" not in [r[1] for r in c.execute("PRAGMA table_info(users)")]:
+        c.execute("ALTER TABLE users ADD COLUMN telefono TEXT")
     if "nivel" not in cols:
         c.execute("ALTER TABLE questions ADD COLUMN nivel TEXT")
     ecols = [r[1] for r in c.execute("PRAGMA table_info(event_questions)")]
@@ -841,7 +854,7 @@ SECTIONS = [
 ]
 LABEL = {f[1]: f[0] for _, fs in SECTIONS for f in fs}
 
-OWN = "✎ Escribir respuesta propia"
+OWN = "Escribir respuesta propia"
 
 def pick(box, label, opts, cur, key, multi=False):
     """Lista desplegable sin teclado. La primera opcion es 'Escribir respuesta propia' y recien ahi aparece la casilla de texto."""
@@ -1155,9 +1168,47 @@ def sets_ui(qs, eid, uid, email):
     quiz_ui(sq, eid, uid, k, deadline)
 
 # ---------------- Modo usuario ----------------
-def splash(t1, t2=""):
-    """Transicion animada a pantalla completa (vino que sube + saludo)."""
-    return (f'<div class="splash"><div class="pour"></div><div class="sg">🍷</div>'
+_WAVE = "M30 0q15 -6 30 0t30 0t30 0t30 0t30 0t30 0V90H30Z"
+
+def _svg_glass():
+    """Copa dorada que se llena de vino y se mece (sin emoji)."""
+    bowl = "M22 8H98C98 66 84 98 60 98C36 98 22 66 22 8Z"
+    return (f'<svg class="sgl" viewBox="0 0 120 160"><defs><clipPath id="sgb"><path d="{bowl}"/></clipPath>'
+            '<linearGradient id="sgw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b3202a"/><stop offset="1" stop-color="#4a1520"/></linearGradient></defs>'
+            f'<g clip-path="url(#sgb)"><g class="sfill" style="transform:translateY(100px)"><g class="swv"><path d="{_WAVE}" transform="translate(-30 8)" fill="url(#sgw)"/></g>'
+            '<circle class="sbb" cx="48" cy="70" r="2.4"/><circle class="sbb b2" cx="68" cy="78" r="2"/><circle class="sbb b3" cx="58" cy="62" r="1.6"/></g></g>'
+            f'<path d="{bowl}" fill="none" stroke="#C9A24B" stroke-width="3" stroke-linejoin="round"/>'
+            '<path d="M60 98V142" stroke="#C9A24B" stroke-width="4" stroke-linecap="round"/>'
+            '<ellipse cx="60" cy="146" rx="28" ry="6" fill="none" stroke="#C9A24B" stroke-width="3"/></svg>')
+
+def _svg_pour():
+    """Botella que se inclina y sirve vino en una copa que se llena (SMIL, sin emoji)."""
+    bowl = "M92 120H148C148 162 138 182 120 182C102 182 92 162 92 120Z"
+    return ('<svg viewBox="-30 -45 290 262"><defs><clipPath id="spb"><path d="' + bowl + '"/></clipPath>'
+            '<linearGradient id="spw" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b3202a"/><stop offset="1" stop-color="#4a1520"/></linearGradient>'
+            '<linearGradient id="spg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6b3d"/><stop offset="1" stop-color="#173a21"/></linearGradient></defs>'
+            # copa: vino que sube (detras del cristal)
+            '<g clip-path="url(#spb)"><g transform="translate(0 190)"><animateTransform attributeName="transform" type="translate" from="0 190" to="0 142" begin="1.1s" dur="1.4s" fill="freeze"/>'
+            '<g><animateTransform attributeName="transform" type="translate" from="0 0" to="-60 0" dur="1.1s" repeatCount="indefinite"/>'
+            f'<path d="{_WAVE}" transform="translate(30 0)" fill="url(#spw)"/></g></g></g>'
+            # chorro de vino
+            '<rect x="118.6" y="70" width="2.8" height="0" rx="1.4" fill="#b3202a"><animate attributeName="height" from="0" to="104" begin="1s" dur=".35s" fill="freeze"/></rect>'
+            # copa (vidrio)
+            f'<path d="{bowl}" fill="none" stroke="#C9A24B" stroke-width="3" stroke-linejoin="round"/>'
+            '<path d="M120 182V204" stroke="#C9A24B" stroke-width="4" stroke-linecap="round"/>'
+            '<ellipse cx="120" cy="207" rx="26" ry="5" fill="none" stroke="#C9A24B" stroke-width="3"/>'
+            # botella: parte vertical y se inclina hasta servir (pivote en la boca)
+            '<g transform="translate(120 66)"><g><animateTransform attributeName="transform" type="rotate" from="-20" to="36" begin=".25s" dur=".8s" fill="freeze"/>'
+            '<path d="M-150 -20C-150 -26 -146 -28 -140 -28H-66C-50 -28 -42 -16 -36 -7L-20 -6V6L-36 7C-42 16 -50 28 -66 28H-140C-146 28 -150 26 -150 20Z" fill="url(#spg)" stroke="#C9A24B" stroke-width="1.4"/>'
+            '<rect x="-20" y="-7" width="20" height="14" rx="2" fill="#C9A24B"/>'
+            '<rect x="-122" y="-17" width="46" height="34" rx="3" fill="#f6e3b5"/>'
+            '<path d="M-114 -6H-84M-114 2H-92M-114 9H-88" stroke="#722f37" stroke-width="2" stroke-linecap="round"/>'
+            '<path d="M-60 -22C-52 -22 -46 -14 -42 -8" fill="none" stroke="#ffffff" stroke-opacity=".28" stroke-width="2" stroke-linecap="round"/></g></g></svg>')
+
+def splash(t1, t2="", kind="glass"):
+    """Transicion animada a pantalla completa (vino que sube + saludo). kind: glass (copa) | pour (botella sirviendo)."""
+    art = f'<div class="sg pr">{_svg_pour()}</div>' if kind == "pour" else f'<div class="sg">{_svg_glass()}</div>'
+    return (f'<div class="splash"><div class="pour"></div>{art}'
             f'<div class="st1">{_html.escape(t1)}</div><div class="st2">{_html.escape(t2)}</div></div>')
 
 def glass():
@@ -1208,19 +1259,28 @@ def register():
         edad = b1.number_input("Edad", 10, 120, 18, key="rg_e")
         genero = b2.selectbox("Género", ["Hombre", "Mujer", "Otro"], key="rg_g")
         email = st.text_input("Correo electrónico", key="rg_m", placeholder="tucorreo@ejemplo.com")
+        tel_raw = st.text_input("Teléfono (opcional)", value="+56 ", key="rg_t", placeholder="+56 9 1234 5678")
         em = email.strip().lower()
         n = int(bool(nombre.strip())) + int(bool(apellido.strip())) + int("@" in em and "." in em)
         if st.button("¡Salud! Entrar a la cata", icon=":material/wine_bar:", type="primary", key="rg_go"):
             if n < 3:
                 st.error("Complete nombre, apellido y un correo válido.")
                 return
+            dig = "".join(ch for ch in tel_raw if ch.isdigit())
+            dig = dig[2:] if dig.startswith("56") else dig
+            if dig and len(dig) != 9:
+                st.error("El teléfono debe tener 9 dígitos después del +56 (ej: +56 9 1234 5678), o déjelo vacío.")
+                return
+            tel = "+56" + dig if dig else None
             ex = df("SELECT id FROM users WHERE email=?", (em,))
             if len(ex):
                 st.session_state.uid = int(ex.id[0])
+                if tel:
+                    run("UPDATE users SET telefono=? WHERE id=?", (tel, int(ex.id[0])))
             else:
                 st.session_state.uid = run(
-                    "INSERT INTO users(nombre,apellido,edad,email,genero,creado) VALUES(?,?,?,?,?,?)",
-                    (nombre.strip(), apellido.strip(), int(edad), em, genero, now()))
+                    "INSERT INTO users(nombre,apellido,edad,email,genero,creado,telefono) VALUES(?,?,?,?,?,?,?)",
+                    (nombre.strip(), apellido.strip(), int(edad), em, genero, now(), tel))
             st.session_state.welcome = nombre.strip()
             st.rerun()
 
@@ -1322,7 +1382,7 @@ def user_app():
     who(u.nombre, u.apellido)
     _w = st.session_state.pop("welcome", None)
     if _w:
-        st.markdown(splash(f"¡Salud, {_w}!", "Que comience la cata"), unsafe_allow_html=True)
+        st.markdown(splash(f"¡Salud, {_w}!", "Que comience la cata", "pour"), unsafe_allow_html=True)
     ev = q_active()
     if ev.empty:
         st.info("No hay un evento activo en este momento.")
@@ -1536,7 +1596,7 @@ def pag_banco():
 
 def pag_participantes():
     st.subheader("Participantes registrados")
-    d = df("SELECT id, nombre, apellido, edad, email, genero, creado FROM users ORDER BY apellido, nombre")
+    d = df("SELECT id, nombre, apellido, edad, email, telefono, genero, creado FROM users ORDER BY apellido, nombre")
     s = st.text_input("Buscar")
     if s:
         d = d[d.apply(lambda r: s.lower() in " ".join(map(str, r.values)).lower(), axis=1)]
