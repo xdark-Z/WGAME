@@ -1813,7 +1813,7 @@ def restore_session():
         return
     try:
         r = df("SELECT role, uid, state, ts FROM sessions WHERE token=?", (tk,))
-        if r.empty or not r.role[0] or (now_cl() - datetime.strptime(r.ts[0], "%Y-%m-%d %H:%M:%S")).days > 30:
+        if r.empty or not r.role[0] or (now_cl() - datetime.strptime(r.ts[0], "%Y-%m-%d %H:%M:%S")).days > 3650:
             st.query_params.pop("s", None)
             return
         ss.role = r.role[0]
@@ -1856,6 +1856,19 @@ def persist_session():
     except Exception:
         pass
 
+def tk_sync(tk=""):
+    """Guarda el token de sesion en el navegador (permanente) y lo recupera si la pestana se cerro."""
+    components.html("""<script>(function(){const P=window.parent,TK=%s;let L=null;try{L=P.localStorage}catch(e){return}
+const U=new URL(P.location.href);
+if(U.searchParams.get('lo')){try{L.removeItem('bg_tk')}catch(e){}U.searchParams.delete('lo');P.history.replaceState(null,'',U.toString());return}
+if(TK){try{L.setItem('bg_tk',TK)}catch(e){}return}
+if(U.searchParams.get('s'))return;
+let t=null;try{t=L.getItem('bg_tk')}catch(e){}
+if(!t)return;
+try{if(P.sessionStorage.getItem('bg_try')===t)return;P.sessionStorage.setItem('bg_try',t)}catch(e){}
+U.searchParams.set('s',t);P.location.replace(U.toString());
+})();</script>""" % json.dumps(tk), height=0)
+
 def end_session():
     tk = st.session_state.get("_tk")
     if tk:
@@ -1864,11 +1877,13 @@ def end_session():
         except Exception:
             pass
     st.query_params.clear()
+    st.query_params["lo"] = "1"
 
 # ---------------- Main ----------------
 restore_session()
 st.markdown(HERO if "role" in st.session_state else HERO_LOGIN, unsafe_allow_html=True)
 if "role" not in st.session_state:
+    tk_sync("")
     login()
 else:
     components.html("""<script>(function(){const P=window.parent,D=P.document;if(P.__sbctl)return;P.__sbctl=1;
@@ -1898,3 +1913,4 @@ D.addEventListener('touchend',function(e){if(!open())return;const t=e.changedTou
         run_page()
     finally:
         persist_session()
+        tk_sync(st.session_state.get("_tk", ""))
