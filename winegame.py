@@ -581,7 +581,7 @@ def conn():
     return c
 
 # tablas de escritura frecuente (usuarios respondiendo): no invalidan el cache de lectura
-_HOT = ("INTO DRAFTS", "INTO SESSIONS", "INTO STARTS", "INTO ANSWERS", "INTO USERS", "INTO FORMS", "INSERT INTO WINES")
+_HOT = ("INTO DRAFTS", "INTO SESSIONS", "INTO STARTS", "INTO ANSWERS", "INTO USERS", "INTO FORMS", "INSERT INTO WINES", "INTO VOTES")
 
 def _bust(sql):
     u = " ".join(sql.upper().split())
@@ -612,7 +612,7 @@ def df(sql, args=()):
 def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-TABLES = ["events", "questions", "event_questions", "users", "answers", "forms", "wines", "sets", "starts", "drafts", "fnames"]
+TABLES = ["events", "questions", "event_questions", "users", "answers", "forms", "wines", "sets", "starts", "drafts", "fnames", "votes"]
 
 @st.cache_resource
 def init():
@@ -634,6 +634,8 @@ def init():
     CREATE TABLE IF NOT EXISTS starts(event_id INTEGER, user_id INTEGER, set_no INTEGER, inicio TEXT, PRIMARY KEY(event_id, user_id, set_no));
     CREATE TABLE IF NOT EXISTS drafts(event_id INTEGER, user_id INTEGER, question_id INTEGER, elegida TEXT, PRIMARY KEY(event_id, user_id, question_id));
     CREATE TABLE IF NOT EXISTS fnames(event_id INTEGER, form_no INTEGER, nombre TEXT, PRIMARY KEY(event_id, form_no));
+    CREATE TABLE IF NOT EXISTS votes(event_id INTEGER, user_id INTEGER, form_no INTEGER, ts TEXT,
+        PRIMARY KEY(event_id, user_id));
     CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, role TEXT, uid INTEGER, state TEXT, ts TEXT);
     CREATE TABLE IF NOT EXISTS wines(event_id INTEGER, form_no INTEGER, data TEXT, ts TEXT,
         PRIMARY KEY(event_id, form_no));
@@ -1005,6 +1007,25 @@ def forms_df(eid):
 def wines_df(eid):
     return expand(df("SELECT form_no AS Formulario, data, ts AS Registrado FROM wines WHERE event_id=? ORDER BY form_no", (eid,)))
 
+def votes_df(eid):
+    """Votos por vino (formulario) del evento, ordenados de mayor a menor."""
+    n = int(df("SELECT n_formularios FROM events WHERE id=?", (eid,)).n_formularios[0])
+    v = df("SELECT form_no, COUNT(*) votos FROM votes WHERE event_id=? GROUP BY form_no", (eid,))
+    m = dict(zip(v.form_no.astype(int), v.votos.astype(int))); nm = fnames(eid)
+    d = pd.DataFrame([{"Formulario": k, "Vino": nm.get(k, f"Formulario {k}"), "Votos": m.get(k, 0)} for k in range(1, n + 1)])
+    if d.empty:
+        return pd.DataFrame(columns=["Posicion", "Formulario", "Vino", "Votos"])
+    d = d.sort_values(["Votos", "Formulario"], ascending=[False, True]).reset_index(drop=True)
+    d.insert(0, "Posicion", d["Votos"].rank(method="min", ascending=False).astype(int))
+    return d
+
+def votes_detail(eid):
+    d = df("""SELECT u.nombre||' '||u.apellido AS Participante, u.email AS Correo, v.form_no AS Formulario, v.ts AS Hora
+              FROM votes v JOIN users u ON u.id=v.user_id WHERE v.event_id=? ORDER BY v.ts""", (eid,))
+    nm = fnames(eid)
+    d.insert(3, "Vino", [nm.get(int(k), f"Formulario {int(k)}") for k in d["Formulario"]])
+    return d
+
 def build_excel(eid):
     sheets = {
         "Evento": df("SELECT * FROM events WHERE id=?", (eid,)),
@@ -1016,6 +1037,8 @@ def build_excel(eid):
         "Respuestas": detalle(eid),
         "Formularios participantes": forms_df(eid),
         "Fichas del admin": wines_df(eid),
+        "Votacion vino": votes_df(eid),
+        "Votos (detalle)": votes_detail(eid),
     }
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as w:
@@ -1274,6 +1297,23 @@ def quiz_ui(qs, eid, uid, sno, deadline):
             finish_set(eid, uid, sno, qs)
             st.rerun()
 
+def vote_ui(eid, uid, n):
+    nm = fnames(eid)
+    lab = lambda k: nm.get(k, f"Formulario {k}")
+    if n == 0:
+        st.info("Este evento no tiene vinos para votar.")
+        return
+    ex = df("SELECT form_no FROM votes WHERE event_id=? AND user_id=?", (eid, uid))
+    if len(ex):
+        st.success(f"Tu voto ya quedó registrado: {lab(int(ex.form_no[0]))}. No se puede cambiar.")
+        return
+    st.markdown("Elige **el vino que más te gustó** de la noche. Solo puedes votar una vez y no podrás cambiarlo.")
+    k = st.selectbox("Tu vino favorito", list(range(1, n + 1)), format_func=lab, index=None,
+                     placeholder="Elija un vino", key=f"vt_{eid}")
+    if k is not None and st.button("Votar por este vino", icon=":material/how_to_vote:", type="primary", key="vt_go"):
+        run("INSERT OR IGNORE INTO votes VALUES(?,?,?,?)", (eid, uid, int(k), now()))
+        st.rerun()
+
 def user_app():
     if "uid" not in st.session_state:
         return register()
@@ -1290,7 +1330,7 @@ def user_app():
     e = ev.iloc[0]
     eid = int(e.id)
     st.subheader(e.nombre)
-    secs = [":material/quiz: Preguntas", ":material/wine_bar: Formularios de cata", ":material/leaderboard: Ranking"]
+    secs = [":material/quiz: Preguntas", ":material/wine_bar: Formularios de cata", ":material/leaderboard: Ranking", ":material/how_to_vote: Votación"]
     if st.session_state.get("usec") not in secs:
         st.session_state.usec = secs[0]
     with st.container(key="usecbox"):
@@ -1321,8 +1361,11 @@ def user_app():
                             (eid, uid, k, json.dumps(data, ensure_ascii=False), now()))
                         st.success("Formulario guardado")
 
-    else:
+    elif sec == secs[2]:
         rank_views(eid, False)
+
+    else:
+        vote_ui(eid, uid, int(e.n_formularios))
 
 # ---------------- Modo admin ----------------
 def pag_eventos():
@@ -1508,11 +1551,24 @@ def pag_resultados():
     eid = pick_event("ev_res")
     if eid is None:
         return
-    t1, t2 = st.tabs([":material/emoji_events: Ranking", ":material/fact_check: Detalle de respuestas"])
+    t1, t2, t3 = st.tabs([":material/emoji_events: Ranking", ":material/fact_check: Detalle de respuestas", ":material/how_to_vote: Votación de vinos"])
     with t1:
         rank_views(eid, True)
     with t2:
         show(detalle(eid))
+    with t3:
+        vd = votes_df(eid)
+        if vd.empty:
+            st.info("Este evento no tiene formularios (vinos).")
+        else:
+            tot = int(vd.Votos.sum())
+            st.metric("Votos recibidos", tot)
+            if tot:
+                top = vd[vd.Posicion == 1]
+                st.success("Mejor vino de la noche: " + " / ".join(top.Vino) + f" ({int(top.Votos.iloc[0])} votos)")
+            show(vd[["Posicion", "Vino", "Votos"]])
+            with st.expander("Detalle de votos por participante"):
+                show(votes_detail(eid))
 
 def pag_formularios():
     st.subheader("Formularios de cata")
