@@ -1,5 +1,11 @@
 import html as _html, streamlit as st, streamlit.components.v1 as components, sqlite3, pandas as pd, json, random, io
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
+
+
+def now_cl():
+    return datetime.now(ZoneInfo("America/Santiago")).replace(tzinfo=None)
+
 
 DB = "wine_game.db"
 WINE = "#722F37"
@@ -44,10 +50,10 @@ html{background:#240810!important}
 [data-testid=stExpandSidebarButton],[data-testid=stSidebarCollapsedControl],[data-testid=stSidebarCollapseButton]{display:flex!important;visibility:visible!important;opacity:1!important}
 [data-testid=stExpandSidebarButton] button,[data-testid=stSidebarCollapsedControl] button,[data-testid=stSidebarCollapseButton] button{color:#f6e3b5!important;background:linear-gradient(135deg,#4a1520,#8a2f3f)!important;border:1px solid #C9A24B!important;border-radius:12px!important}
 /* pestana al borde izquierdo: abre el menu si esta oculto */
-.sbtab{position:fixed;left:0;top:42%;z-index:999990;width:28px;height:90px;border-radius:0 14px 14px 0;background:linear-gradient(135deg,#4a1520,#8a2f3f);border:1px solid #C9A24B;border-left:0;
+.sbtab{display:none!important;position:fixed;left:0;top:42%;z-index:999990;width:28px;height:90px;border-radius:0 14px 14px 0;background:linear-gradient(135deg,#4a1520,#8a2f3f);border:1px solid #C9A24B;border-left:0;
  display:none;align-items:center;justify-content:center;cursor:pointer;box-shadow:4px 6px 16px rgba(0,0,0,.35);outline:none;transition:width .25s}
 .sbtab:hover{width:36px}.sbtab svg{width:18px;height:18px;fill:none;stroke:#f6e3b5;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
-.stApp:has(section[data-testid=stSidebar][aria-expanded=false]) .sbtab{display:flex}
+
 /* menu cerrado: se oculta por completo (sin la barrita con letras cortadas) */
 section[data-testid=stSidebar][aria-expanded=false]{visibility:hidden!important;width:0!important;min-width:0!important;overflow:hidden!important;transform:none!important;border:0!important;box-shadow:none!important}
 .stApp:has(.sbtab:hover) section[data-testid=stSidebar][aria-expanded=false],.stApp:has(.sbtab:focus) section[data-testid=stSidebar][aria-expanded=false],section[data-testid=stSidebar][aria-expanded=false]:hover{visibility:visible!important;width:min(320px,85vw)!important;min-width:min(320px,85vw)!important;
@@ -644,7 +650,7 @@ def df(sql, args=()):
     return d
 
 def now():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return now_cl().strftime("%Y-%m-%d %H:%M:%S")
 
 TABLES = ["events", "questions", "event_questions", "users", "answers", "forms", "wines", "sets", "starts", "drafts", "fnames", "votes", "cheats"]
 
@@ -778,7 +784,7 @@ LUGARES = ["Viña / bodega", "Enoteca / bar de vinos", "Restaurante", "Casa part
     "Viña del Mar", "Casablanca", "Santiago", "Rancagua", "Santa Cruz", "Curicó", "Talca", "Chillán",
     "Concepción", "Temuco", "Valdivia", "Osorno", "Puerto Montt", "Punta Arenas"]
 
-ANIOS = [str(y) for y in range(datetime.now().year, 1989, -1)] + ["Sin añada (NV)"]
+ANIOS = [str(y) for y in range(now_cl().year, 1989, -1)] + ["Sin añada (NV)"]
 
 # Denominaciones de Origen de Chile (Decreto 464): regiones vitícolas, valles y zonas
 ORIGENES = [
@@ -1228,7 +1234,7 @@ def sets_ui(qs, eid, uid, email):
             st.rerun()
         return
     deadline = datetime.strptime(stt.inicio[0], "%Y-%m-%d %H:%M:%S") + timedelta(seconds=d)
-    if datetime.now() >= deadline:
+    if now_cl() >= deadline:
         finish_set(eid, uid, k, sq)
         st.rerun()
     if st.button("trampa", key="cheatbtn"):  # boton oculto: lo acciona la guardia JS al salir de la app
@@ -1373,7 +1379,7 @@ def quiz_ui(qs, eid, uid, sno, deadline):
 
     def setans(q):
         v = ss.get(f"r_{kk}_{q}")
-        if v is not None and datetime.now() < deadline:
+        if v is not None and now_cl() < deadline:
             ans[q] = v
             run("INSERT INTO drafts VALUES(?,?,?,?) ON CONFLICT(event_id,user_id,question_id) DO UPDATE SET elegida=excluded.elegida", (eid, uid, q, v))
 
@@ -1384,7 +1390,7 @@ def quiz_ui(qs, eid, uid, sno, deadline):
 
     @st.fragment(run_every="10s")  # el segundero corre en el navegador; el servidor solo vigila el vencimiento
     def clock():
-        rem = int((deadline - datetime.now()).total_seconds())
+        rem = int((deadline - now_cl()).total_seconds())
         if rem <= 0:
             finish_set(eid, uid, sno, qs)
             st.rerun()
@@ -1807,7 +1813,7 @@ def restore_session():
         return
     try:
         r = df("SELECT role, uid, state, ts FROM sessions WHERE token=?", (tk,))
-        if r.empty or not r.role[0] or (datetime.now() - datetime.strptime(r.ts[0], "%Y-%m-%d %H:%M:%S")).days > 30:
+        if r.empty or not r.role[0] or (now_cl() - datetime.strptime(r.ts[0], "%Y-%m-%d %H:%M:%S")).days > 30:
             st.query_params.pop("s", None)
             return
         ss.role = r.role[0]
