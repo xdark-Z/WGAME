@@ -1871,6 +1871,21 @@ st.markdown(HERO if "role" in st.session_state else HERO_LOGIN, unsafe_allow_htm
 if "role" not in st.session_state:
     login()
 else:
+    components.html("""<script>(function(){const P=window.parent,D=P.document;if(P.__sbctl)return;P.__sbctl=1;
+const TG='[data-testid=stExpandSidebarButton],[data-testid=stSidebarCollapsedControl],[data-testid=stSidebarCollapseButton]';
+const sb=()=>D.querySelector('section[data-testid=stSidebar]');
+const open=()=>{const s=sb();return !!s&&s.getAttribute('aria-expanded')!=='false'};
+let busy=0;
+function fire(sel){const e=D.querySelector(sel);const b=e&&(e.tagName==='BUTTON'?e:e.querySelector('button,[role=button],a'))||e;if(b){busy=1;b.click();busy=0;return true}return false}
+function close(){if(!open())return;fire('[data-testid=stSidebarCollapseButton]')}
+D.addEventListener('click',function(ev){if(busy)return;const t=ev.target;if(!t||!t.closest)return;
+ if(t.closest(TG)){if(open()){ev.preventDefault();ev.stopPropagation();close()}return}
+ if(open()&&!t.closest('section[data-testid=stSidebar]'))close()},true);
+let x0=0,y0=0;
+D.addEventListener('touchstart',function(e){const t=e.touches[0];x0=t.clientX;y0=t.clientY},{passive:true});
+D.addEventListener('touchend',function(e){if(!open())return;const t=e.changedTouches[0],dx=t.clientX-x0,dy=t.clientY-y0;
+ if(Math.abs(dx)>70&&Math.abs(dx)>2*Math.abs(dy)&&(x0<D.documentElement.clientWidth*0.9))close()},{passive:true});
+})();</script>""", height=0)
     st.markdown('<div class="sbtab" tabindex="0" title="Abrir menú"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></div>', unsafe_allow_html=True)
     st.sidebar.markdown('<div class="brand">' + ICON + '<span>The Brillat Game</span></div>', unsafe_allow_html=True)
     run_page = admin_nav() if st.session_state.role == "admin" else user_app
