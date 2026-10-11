@@ -574,9 +574,9 @@ def who(nombre, apellido):
     st.markdown(f'<div class="who"><span class="av">{_html.escape(ini)}</span><span>{_html.escape(f"{nombre} {apellido}")}</span></div>',
                 unsafe_allow_html=True)
 
-def my_pos(eid, email, sno=None):
+def my_pos(eid, uid, sno=None):
     rk = ranking(eid, sno)
-    m = rk.index[rk["Correo"] == email]
+    m = rk.index[rk["ID"] == uid]
     return (int(rk["Posicion"][m[0]]), len(rk)) if len(m) else (None, len(rk))
 
 def result_card(score, total, pos=None, n=None):
@@ -706,9 +706,8 @@ def init():
             c.execute(f"ALTER TABLE event_questions ADD COLUMN {col} {typ}")
     if "n_sets" not in [r[1] for r in c.execute("PRAGMA table_info(events)")]:
         c.execute("ALTER TABLE events ADD COLUMN n_sets INTEGER DEFAULT 1")
-    for t in TABLES:  # proteccion: ningun registro se puede borrar
-        c.execute(f"CREATE TRIGGER IF NOT EXISTS nodel_{t} BEFORE DELETE ON {t} "
-                  f"BEGIN SELECT RAISE(ABORT,'Registros protegidos: no se pueden borrar'); END;")
+    for t in TABLES:  # ya no se protege contra borrado: el admin puede eliminar registros
+        c.execute(f"DROP TRIGGER IF EXISTS nodel_{t}")
     c.executescript("""
     CREATE INDEX IF NOT EXISTS ix_ans_user ON answers(user_id);
     CREATE INDEX IF NOT EXISTS ix_ans_ev ON answers(event_id, user_id);
@@ -1039,7 +1038,7 @@ def q_nsets(eid):
 @st.cache_data(ttl=10, show_spinner=False)
 def ranking(eid, sno=None):
     j = " JOIN event_questions x ON x.event_id=a.event_id AND x.question_id=a.question_id AND x.set_no=?" if sno else ""
-    d = df("""SELECT u.nombre||' '||u.apellido AS Participante, u.email AS Correo,
+    d = df("""SELECT u.nombre||' '||u.apellido AS Participante, COALESCE(u.email,'') AS Correo, u.id AS ID,
               SUM(a.correcta) AS Puntaje, SUM(a.elegida<>'') AS Respondidas, MAX(a.ts) AS Hora
               FROM answers a JOIN users u ON u.id=a.user_id""" + j + """ WHERE a.event_id=?
               GROUP BY u.id ORDER BY Puntaje DESC, Hora ASC""", (sno, eid) if sno else (eid,))
@@ -1101,6 +1100,60 @@ def build_excel(eid):
             d.to_excel(w, sheet_name=n, index=False)
     return buf.getvalue()
 
+def borrar_de_evento(eid, uids, tablas):
+    c = conn()
+    with c:
+        for t in tablas:
+            c.executemany(f"DELETE FROM {t} WHERE event_id=? AND user_id=?", [(eid, int(u)) for u in uids])
+    c.close()
+    st.cache_data.clear()
+
+def borrar_usuarios(uids):
+    c = conn()
+    with c:
+        for u in uids:
+            u = int(u)
+            for t in ("answers", "drafts", "starts", "cheats", "votes", "forms"):
+                c.execute(f"DELETE FROM {t} WHERE user_id=?", (u,))
+            c.execute("DELETE FROM sessions WHERE uid=?", (u,))
+            c.execute("DELETE FROM users WHERE id=?", (u,))
+    c.close()
+    st.cache_data.clear()
+
+OPC_BORRAR = {
+    "Todo (respuestas, tests, formularios, voto y trampas)": ("answers", "drafts", "starts", "cheats", "votes", "forms"),
+    "Solo respuestas y tests (podrán rehacerlos, limpia trampas)": ("answers", "drafts", "starts", "cheats"),
+    "Solo formularios de cata": ("forms",),
+    "Solo el voto": ("votes",),
+    "Solo el registro de trampas": ("cheats",),
+}
+
+def ui_eliminar(eid):
+    if "dmsg" in st.session_state:
+        st.success(st.session_state.pop("dmsg"))
+    st.warning("Las eliminaciones son definitivas.")
+    pe = df("""SELECT id, nombre||' '||apellido AS n, COALESCE(email,'') AS e FROM users WHERE id IN (
+               SELECT user_id FROM answers WHERE event_id=? UNION SELECT user_id FROM forms WHERE event_id=?
+               UNION SELECT user_id FROM votes WHERE event_id=? UNION SELECT user_id FROM cheats WHERE event_id=?
+               UNION SELECT user_id FROM starts WHERE event_id=?) ORDER BY apellido, nombre""", (eid,) * 5)
+    if pe.empty:
+        st.info("Este evento no tiene registros de participantes.")
+        return
+    lab = {int(i): f"{n} {e}".strip() for i, n, e in zip(pe.id, pe.n, pe.e)}
+    que = st.radio("¿Qué eliminar?", list(OPC_BORRAR), key=f"del_q{eid}")
+    todos = st.checkbox("Seleccionar todos los participantes", key=f"del_all{eid}")
+    ids = list(lab) if todos else st.multiselect("Participantes", list(lab), format_func=lambda i: lab[i], key=f"del_ids{eid}")
+    ok = st.checkbox("Confirmo que quiero eliminar estos registros", key=f"del_ok{eid}")
+    if st.button("Eliminar registros", type="primary", icon=":material/delete:", key=f"del_go{eid}"):
+        if not ids:
+            st.error("Selecciona al menos un participante.")
+        elif not ok:
+            st.error("Marca la casilla de confirmación.")
+        else:
+            borrar_de_evento(eid, ids, OPC_BORRAR[que])
+            st.session_state.dmsg = f"Eliminado para {len(ids)} participante(s)."
+            st.rerun()
+
 def pick_event(key):
     ev = df("SELECT id, nombre, activo FROM events ORDER BY activo DESC, id DESC")
     if ev.empty:
@@ -1155,7 +1208,7 @@ def rank_views(eid, admin):
                 podium(rk)
                 rank_table(rk)
             else:
-                rank_table(rk.drop(columns=["Correo", "Hora"]).head(20))
+                rank_table(rk.drop(columns=["Correo", "Hora", "ID"]).head(20))
 
 def saved(eid, uid, qids):
     d = df("SELECT question_id, elegida FROM drafts WHERE event_id=? AND user_id=?", (eid, uid))
@@ -1232,14 +1285,14 @@ def sets_ui(qs, eid, uid, email):
                 if k in cheated:
                     rows.append({"Test": k, "Aciertos": "Descalificado (0)", "Tu puesto": "-"})
                     continue
-                p, n = my_pos(eid, email, k)
+                p, n = my_pos(eid, uid, k)
                 rows.append({"Test": k, "Aciertos": f"{got[k][1]} / {got[k][0]}", "Tu puesto": f"{p}° de {n}"})
             show(pd.DataFrame(rows))
         k = ss.get(rk) if ss.get(rk) in done else done[-1]
         if k in cheated:
             cheat_screen(k)
         else:
-            p, n = my_pos(eid, email, k)
+            p, n = my_pos(eid, uid, k)
             result_card(got[k][1], got[k][0], p, n)
         if pend:
             if st.button(f"Continuar al Test {pend[0]}", icon=":material/arrow_forward:", type="primary", key="cont_test"):
@@ -1335,10 +1388,7 @@ GLASS_JS = """<script>
  function len(l){var e=inp(l);return e?e.value.trim().length:0;}
  function tick(){
   var g=P.querySelector('.gfill'); if(!g) return;
-  var em=(inp('Correo electrónico')||{value:''}).value.trim();
-  var ok=/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(em);
-  var p=Math.min(1,len('Nombre')/4)/3+Math.min(1,len('Apellido')/4)/3+(ok?1:Math.min(em.length,8)/8*.8)/3;
-  if(ok&&len('Nombre')>0&&len('Apellido')>0) p=1;
+  var p=Math.min(1,len('Nombre')/4);
   p=Math.round(p*100)/100; if(p===last) return; last=p;
   g.style.transform='translateY('+(100-p*88)+'px)';
   var m=P.querySelector('.gmsg'), bar=P.querySelector('.gbar i'), gl=P.querySelector('.glass');
@@ -1358,17 +1408,19 @@ def register():
         components.html(GLASS_JS, height=0)
         a1, a2 = st.columns(2)
         nombre = a1.text_input("Nombre", key="rg_n")
-        apellido = a2.text_input("Apellido", key="rg_a")
+        apellido = a2.text_input("Apellido (opcional)", key="rg_a")
         b1, b2 = st.columns(2)
-        edad = b1.number_input("Edad", 10, 120, 18, key="rg_e")
-        genero = b2.selectbox("Género", ["Hombre", "Mujer", "Otro"], key="rg_g")
-        email = st.text_input("Correo electrónico", key="rg_m", placeholder="tucorreo@ejemplo.com")
+        edad = b1.number_input("Edad (opcional)", 10, 120, value=None, key="rg_e", placeholder="Opcional")
+        genero = b2.selectbox("Género (opcional)", ["Hombre", "Mujer", "Otro"], index=None, placeholder="Opcional", key="rg_g")
+        email = st.text_input("Correo electrónico (opcional)", key="rg_m", placeholder="tucorreo@ejemplo.com")
         tel_raw = st.text_input("Teléfono (opcional)", value="+56 ", key="rg_t", placeholder="+56 9 1234 5678")
-        em = email.strip().lower()
-        n = int(bool(nombre.strip())) + int(bool(apellido.strip())) + int("@" in em and "." in em)
         if st.button("¡Salud! Entrar a la cata", icon=":material/wine_bar:", type="primary", key="rg_go"):
-            if n < 3:
-                st.error("Complete nombre, apellido y un correo válido.")
+            em = email.strip().lower()
+            if not nombre.strip():
+                st.error("El nombre es obligatorio.")
+                return
+            if em and not ("@" in em and "." in em.split("@")[-1]):
+                st.error("El correo no parece válido (o déjelo vacío).")
                 return
             dig = "".join(ch for ch in tel_raw if ch.isdigit())
             dig = dig[2:] if dig.startswith("56") else dig
@@ -1376,7 +1428,7 @@ def register():
                 st.error("El teléfono debe tener 9 dígitos después del +56 (ej: +56 9 1234 5678), o déjelo vacío.")
                 return
             tel = "+56" + dig if dig else None
-            ex = df("SELECT id FROM users WHERE email=?", (em,))
+            ex = df("SELECT id FROM users WHERE email=?", (em,)) if em else pd.DataFrame()
             if len(ex):
                 st.session_state.uid = int(ex.id[0])
                 if tel:
@@ -1384,7 +1436,7 @@ def register():
             else:
                 st.session_state.uid = run(
                     "INSERT INTO users(nombre,apellido,edad,email,genero,creado,telefono) VALUES(?,?,?,?,?,?,?)",
-                    (nombre.strip(), apellido.strip(), int(edad), em, genero, now(), tel))
+                    (nombre.strip(), apellido.strip(), int(edad) if edad else None, em or None, genero, now(), tel))
             st.session_state.welcome = nombre.strip()
             st.rerun()
 
@@ -1574,10 +1626,21 @@ def pag_eventos():
     st.markdown("##### Tests y preguntas del evento")
     sel = df(EQ, (eid,))
     if len(sel):
-        st.caption("Los tests de este evento ya quedaron guardados y bloqueados (preguntas, orden, alternativa correcta y duración).")
-        sd = df("SELECT set_no AS Test, duracion FROM sets WHERE event_id=? ORDER BY set_no", (eid,))
-        sd["Duración"] = sd.pop("duracion").map(fmt_dur)
-        show(sd)
+        st.caption("Preguntas, orden y alternativas están bloqueadas, pero puedes cambiar la duración de cada test aunque el evento esté activo. Aplica de inmediato, también a quienes ya empezaron (el reloj de ellos se actualiza en ~10 s).")
+        sd = df("SELECT set_no, duracion FROM sets WHERE event_id=? ORDER BY set_no", (eid,))
+        with st.form(f"edur{eid}"):
+            nd, bad = {}, False
+            for r in sd.itertuples():
+                t = st.text_input(f"Test {int(r.set_no)} - duración (hh:mm:ss)", fmt_dur(r.duracion), key=f"edu{eid}_{int(r.set_no)}")
+                s_ = parse_dur(t)
+                bad = bad or s_ is None
+                nd[int(r.set_no)] = s_
+            if st.form_submit_button("Actualizar duraciones"):
+                if bad:
+                    st.error("Formato inválido. Use hh:mm:ss (ej: 00:10:00)")
+                else:
+                    many("UPDATE sets SET duracion=? WHERE event_id=? AND set_no=?", [(v, eid, k) for k, v in nd.items()])
+                    st.success("Duraciones actualizadas")
         show(qview(sel))
     else:
         bank = df("SELECT id, pregunta, alts, a, b, c, d, nivel FROM questions ORDER BY id")
@@ -1732,6 +1795,23 @@ def _participantes_live():
 def pag_participantes():
     st.subheader("Participantes registrados")
     live(_participantes_live)()
+    if "dmsg" in st.session_state:
+        st.success(st.session_state.pop("dmsg"))
+    with st.expander("Eliminar participantes (definitivo, de todos los eventos)"):
+        u = df("SELECT id, nombre||' '||apellido AS n, COALESCE(email,'') AS e FROM users ORDER BY id DESC")
+        lab = {int(i): f"{n} {e}".strip() for i, n, e in zip(u.id, u.n, u.e)}
+        todos = st.checkbox("Seleccionar todos", key="du_all")
+        ids = list(lab) if todos else st.multiselect("Participantes", list(lab), format_func=lambda i: lab[i], key="du_ids")
+        ok = st.checkbox("Confirmo que quiero eliminarlos con todos sus datos", key="du_ok")
+        if st.button("Eliminar participantes", type="primary", icon=":material/delete:", key="du_go"):
+            if not ids:
+                st.error("Selecciona al menos uno.")
+            elif not ok:
+                st.error("Marca la casilla de confirmación.")
+            else:
+                borrar_usuarios(ids)
+                st.session_state.dmsg = f"{len(ids)} participante(s) eliminados."
+                st.rerun()
 
 def _trampas_live(eid):
     d = cheats_df(eid)
@@ -1747,7 +1827,7 @@ def pag_resultados():
     eid = pick_event("ev_res")
     if eid is None:
         return
-    t1, t2, t3, t4 = st.tabs([":material/emoji_events: Ranking", ":material/fact_check: Detalle de respuestas", ":material/how_to_vote: Votación de vinos", ":material/gpp_bad: Trampas"])
+    t1, t2, t3, t4, t5 = st.tabs([":material/emoji_events: Ranking", ":material/fact_check: Detalle de respuestas", ":material/how_to_vote: Votación de vinos", ":material/gpp_bad: Trampas", ":material/delete: Eliminar"])
     with t1:
         rank_views(eid, True)
     with t2:
@@ -1767,6 +1847,8 @@ def pag_resultados():
                 show(votes_detail(eid))
     with t4:
         live(_trampas_live)(eid)
+    with t5:
+        ui_eliminar(eid)
 
 def pag_formularios():
     st.subheader("Formularios de cata")
