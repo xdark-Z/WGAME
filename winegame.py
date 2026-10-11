@@ -1898,18 +1898,17 @@ def pag_formularios():
             nm = fnames(eid); k = st.selectbox("Formulario N°", list(range(1, n + 1)), format_func=lambda x: nm.get(x, f"Formulario {x}"))
             ex = df("SELECT data FROM wines WHERE event_id=? AND form_no=?", (eid, k))
             d = json.loads(ex.data[0]) if len(ex) else wine_default(nm.get(k, ""))
-            st.caption("Los datos del vino son obligatorios: los participantes los verán sin poder editarlos.")
+            st.caption("Los participantes verán estos datos sin poder editarlos. Puedes guardar la ficha aunque falten campos.")
             with st.container():
                 data = form_widgets(f"a{eid}_{k}", d)
                 if st.button("Guardar ficha", type="primary", key=f"sv_a{eid}_{k}"):
                     falta = [fld[0] for fld in SECTIONS[0][1] if data.get(fld[1]) in ("", None, [])]
-                    if falta:
-                        st.error("Los datos del vino son obligatorios. Falta: " + ", ".join(falta))
-                    else:
-                        run("""INSERT INTO wines VALUES(?,?,?,?) ON CONFLICT(event_id,form_no)
-                               DO UPDATE SET data=excluded.data, ts=excluded.ts""",
-                            (eid, k, json.dumps(data, ensure_ascii=False), now()))
-                        st.success("Ficha guardada")
+                    run("""INSERT INTO wines VALUES(?,?,?,?) ON CONFLICT(event_id,form_no)
+                           DO UPDATE SET data=excluded.data, ts=excluded.ts""",
+                        (eid, k, json.dumps(data, ensure_ascii=False), now()))
+                    st.success("Ficha guardada")
+                    if falta:  # se guarda igual; solo avisa lo que quedó vacío
+                        st.warning("Guardada con campos vacíos: " + ", ".join(falta))
     with t2:
         show(forms_df(eid))
 
