@@ -842,6 +842,40 @@ CASAS = ["Concha y Toro", "Viña Santa Rita", "Cousiño Macul", "Viña Undurraga
 
 ALCOHOLES = [f"{v / 2:g}".replace(".", ",") + "%" for v in range(17, 32)]
 
+# ---------------- Fichas por defecto de vinos (el admin las puede editar y guardar) ----------------
+# Se aplican cuando el formulario aun no tiene ficha guardada. Campos faltantes quedan vacios para que el admin los complete.
+# Fuentes: fichas tecnicas de catalogo (Lunare, Governo all'Uso Toscano); resto por tipo de vino (ver notas).
+def _wnorm(t):
+    import unicodedata, re
+    t = unicodedata.normalize("NFD", str(t or "").lower())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    t = re.sub(r"[^a-z0-9 ]", "", t)
+    t = re.sub(r"ensambl[ae]je", "ensamblaje", t)
+    t = t.replace("prosseco", "prosecco")
+    return re.sub(r"\s+", " ", t).strip()
+
+WINE_DEFAULTS = {_wnorm(k): v for k, v in {
+    "Espumante Lunare Prosecco Italiano": {
+        "origen": "Veneto, Italia", "alc": "11,5%", "cepas": ["Glera"],
+        "estilo": "Espumoso (método Charmat)", "categoria": "Espumoso"},
+    "Lambrusco Rosso Amabile Italiano": {  # alcohol aproximado (marcas similares: 8-8,5%)
+        "origen": "Emilia-Romagna, Italia", "alc": "8,5%", "cepas": ["Lambrusco"],
+        "estilo": "Tinto espumoso semidulce (amabile)"},
+    "La Mora Merlot Italiano": {  # sin ficha verificada
+        "cepas": ["Merlot"]},
+    "Governo allUso Toscano Ensamblaje Italiano": {
+        "origen": "Toscana, Italia", "alc": "13%", "cepas": ["Sangiovese", "Canaiolo"],
+        "estilo": "Ensamblaje (blend)", "categoria": "Toscana IGT"},
+    "Chianti Fior Di Vigna Ensamblaje Italiano": {  # sin ficha verificada; Chianti = base Sangiovese
+        "origen": "Chianti, Toscana, Italia", "cepas": ["Sangiovese"],
+        "estilo": "Ensamblaje (blend)", "categoria": "Chianti DOCG"},
+}.items()}
+
+def wine_default(nombre):
+    """Ficha por defecto segun el nombre del formulario ({} si no es uno de los vinos conocidos)."""
+    d = WINE_DEFAULTS.get(_wnorm(nombre))
+    return dict(d, nombre=str(nombre).strip()) if d else {}
+
 COLORES = ["Rojo violáceo / púrpura", "Rojo rubí", "Rojo cereza", "Rojo granate", "Rojo teja / ladrillo",
     "Rojo con borde anaranjado", "Amarillo verdoso", "Amarillo pálido", "Amarillo pajizo", "Amarillo dorado",
     "Dorado intenso", "Ámbar", "Rosa pálido", "Rosa salmón", "Rosa frambuesa", "Cebolla", "Naranja"]
@@ -1578,7 +1612,7 @@ def user_app():
             with st.expander(fnames(eid).get(k, f"Formulario {k}") + (" (completado)" if d else "")):
                 with st.container():
                     _w = df("SELECT data FROM wines WHERE event_id=? AND form_no=?", (eid, k))
-                    data = form_widgets(f"u{k}", d, base=json.loads(_w.data[0]) if len(_w) else {})
+                    data = form_widgets(f"u{k}", d, base=json.loads(_w.data[0]) if len(_w) else wine_default(fnames(eid).get(k, "")))
                     if st.button("Guardar formulario", type="primary", key=f"sv_u{k}"):
                         run("""INSERT INTO forms VALUES(?,?,?,?,?) ON CONFLICT(event_id,user_id,form_no)
                                DO UPDATE SET data=excluded.data, ts=excluded.ts""",
@@ -1863,7 +1897,7 @@ def pag_formularios():
         else:
             nm = fnames(eid); k = st.selectbox("Formulario N°", list(range(1, n + 1)), format_func=lambda x: nm.get(x, f"Formulario {x}"))
             ex = df("SELECT data FROM wines WHERE event_id=? AND form_no=?", (eid, k))
-            d = json.loads(ex.data[0]) if len(ex) else {}
+            d = json.loads(ex.data[0]) if len(ex) else wine_default(nm.get(k, ""))
             st.caption("Los datos del vino son obligatorios: los participantes los verán sin poder editarlos.")
             with st.container():
                 data = form_widgets(f"a{eid}_{k}", d)
