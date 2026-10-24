@@ -1447,20 +1447,20 @@ def register():
         b1, b2 = st.columns(2)
         edad = b1.number_input("Edad (opcional)", 10, 120, value=None, key="rg_e", placeholder="Opcional")
         genero = b2.selectbox("Género (opcional)", ["Hombre", "Mujer", "Otro"], index=None, placeholder="Opcional", key="rg_g")
-        email = st.text_input("Correo electrónico (opcional)", key="rg_m", placeholder="tucorreo@ejemplo.com")
-        tel_raw = st.text_input("Teléfono (opcional)", value="+56 ", key="rg_t", placeholder="+56 9 1234 5678")
+        email = st.text_input("Correo electrónico", key="rg_m", placeholder="tucorreo@ejemplo.com")
+        tel_raw = st.text_input("Celular", value="+56 ", key="rg_t", placeholder="+56 9 1234 5678")
         if st.button("¡Salud! Entrar a la cata", icon=":material/wine_bar:", type="primary", key="rg_go"):
             em = email.strip().lower()
             if not nombre.strip():
                 st.error("El nombre es obligatorio.")
                 return
-            if em and not ("@" in em and "." in em.split("@")[-1]):
-                st.error("El correo no parece válido (o déjelo vacío).")
+            if not em or not ("@" in em and "." in em.split("@")[-1]):
+                st.error("El correo es obligatorio y debe ser válido.")
                 return
             dig = "".join(ch for ch in tel_raw if ch.isdigit())
             dig = dig[2:] if dig.startswith("56") else dig
-            if dig and len(dig) != 9:
-                st.error("El teléfono debe tener 9 dígitos después del +56 (ej: +56 9 1234 5678), o déjelo vacío.")
+            if len(dig) != 9:
+                st.error("El celular es obligatorio: 9 dígitos después del +56 (ej: +56 9 1234 5678).")
                 return
             tel = "+56" + dig if dig else None
             ex = df("SELECT id FROM users WHERE email=?", (em,)) if em else pd.DataFrame()
