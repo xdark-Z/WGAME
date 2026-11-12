@@ -735,6 +735,8 @@ def init():
             c.execute(f"ALTER TABLE event_questions ADD COLUMN {col} {typ}")
     if "n_sets" not in [r[1] for r in c.execute("PRAGMA table_info(events)")]:
         c.execute("ALTER TABLE events ADD COLUMN n_sets INTEGER DEFAULT 1")
+    if "vasos" not in [r[1] for r in c.execute("PRAGMA table_info(events)")]:
+        c.execute("ALTER TABLE events ADD COLUMN vasos INTEGER DEFAULT 1")  # 1 = el evento incluye el juego de los vasos
     for t in TABLES:  # ya no se protege contra borrado: el admin puede eliminar registros
         c.execute(f"DROP TRIGGER IF EXISTS nodel_{t}")
     c.executescript("""
@@ -1709,6 +1711,8 @@ def user_app():
     eid = int(e.id)
     st.subheader(e.nombre)
     secs = [":material/quiz: Preguntas", ":material/wine_bar: Formularios de cata", ":material/leaderboard: Ranking", ":material/how_to_vote: Votación", ":material/local_bar: Vasos"]
+    if not vasos_on(e):
+        secs = secs[:4]
     if st.session_state.get("usec") not in secs:
         st.session_state.usec = secs[0]
     with st.container(key="usecbox"):
@@ -1749,23 +1753,57 @@ def user_app():
         glass_ui(eid, uid)
 
 # ---------------- Modo admin ----------------
+def vasos_on(e):
+    v = e["vasos"] if "vasos" in e else 1
+    return True if v is None or v != v else bool(int(v))
+
+MD_MAN = "Elegir manualmente (en el orden que las marques)"
+HW_BANCO = "Tal como está en el banco"
+
+def reabrir_tests(eid, borrar_resp):
+    """Vuelve atrás: desbloquea la selección de preguntas dejando el formulario con lo que ya estaba elegido."""
+    eq = df("SELECT question_id, set_no FROM event_questions WHERE event_id=? ORDER BY orden", (eid,))
+    sd = df("SELECT set_no, duracion FROM sets WHERE event_id=?", (eid,))
+    ss = st.session_state
+    ss[f"ns{eid}"] = max(int(sd.set_no.max()) if len(sd) else 1, int(eq.set_no.max()) if len(eq) else 1)
+    for r in sd.itertuples():
+        ss[f"du{eid}_{int(r.set_no)}"] = fmt_dur(r.duracion)
+    for k in sorted({int(x) for x in eq.set_no}):
+        ss[f"md{eid}_{k}"] = MD_MAN
+        ss[f"hw{eid}_{k}"] = HW_BANCO
+        ss[f"pm{eid}_{k}"] = [int(q) for q, sn in zip(eq.question_id, eq.set_no) if int(sn) == k]
+    run("DELETE FROM event_questions WHERE event_id=?", (eid,))
+    run("DELETE FROM sets WHERE event_id=?", (eid,))
+    if borrar_resp:
+        for t in ("answers", "drafts", "starts", "cheats"):
+            run(f"DELETE FROM {t} WHERE event_id=?", (eid,))
+    run("UPDATE events SET n_preguntas=0, n_sets=1, activo=0 WHERE id=?", (eid,))
+    q_eq.clear(); q_durs.clear(); q_nsets.clear(); q_active.clear()
+
 def pag_eventos():
     st.subheader("Eventos")
     with st.form("nuevo_ev"):
         c1, c2 = st.columns(2)
         nombre = c1.text_input("Nombre del evento (ej: Evento N°31)")
         nf = c2.number_input("Cantidad de formularios de cata", 0, 50, 6)
+        vs = st.checkbox("Incluir el juego de los vasos en este evento", True)
         if st.form_submit_button("Crear evento"):
             try:
-                run("INSERT INTO events(nombre,n_formularios,creado) VALUES(?,?,?)", (nombre.strip(), int(nf), now()))
+                run("INSERT INTO events(nombre,n_formularios,creado,vasos) VALUES(?,?,?,?)", (nombre.strip(), int(nf), now(), int(vs)))
                 st.rerun()
             except sqlite3.IntegrityError:
                 st.error("Ya existe un evento con ese nombre (o el nombre está vacío).")
-    show(df("SELECT id, nombre, n_preguntas, n_formularios, activo, creado FROM events ORDER BY id DESC"))
+    show(df("SELECT id, nombre, n_preguntas, n_formularios, vasos, activo, creado FROM events ORDER BY id DESC"))
     eid = pick_event("ev_cfg")
     if eid is None:
         return
     e = df("SELECT * FROM events WHERE id=?", (eid,)).iloc[0]
+    st.markdown("##### Juego de los vasos")
+    vs_cur = vasos_on(e)
+    vs_new = st.toggle("Incluir el juego de los vasos en este evento", vs_cur, key=f"vs{eid}_{int(vs_cur)}")
+    if vs_new != vs_cur:
+        run("UPDATE events SET vasos=? WHERE id=?", (int(vs_new), eid)); q_active.clear(); st.rerun()
+    st.caption("Si lo desactivas, los participantes no verán la sección «Vasos» (los votos ya registrados no se borran).")
     st.markdown("##### Formularios")
     nf = st.number_input("Cantidad de formularios", 0, 50, int(e.n_formularios), key=f"nf{eid}")
     if st.button("Actualizar cantidad de formularios"):
@@ -1799,17 +1837,28 @@ def pag_eventos():
                     many("UPDATE sets SET duracion=? WHERE event_id=? AND set_no=?", [(v, eid, k) for k, v in nd.items()])
                     st.success("Duraciones actualizadas")
         show(qview(sel))
+        nresp = int(df("SELECT (SELECT COUNT(*) FROM answers WHERE event_id=?)+(SELECT COUNT(*) FROM starts WHERE event_id=?) n", (eid, eid)).n[0])
+        with st.expander(":material/undo: Volver atrás: editar preguntas / tests"):
+            st.caption("Desbloquea la selección y deja el formulario con lo que ya habías elegido (preguntas, orden, duraciones). El evento se desactiva mientras editas; vuelve a guardar y activar al terminar.")
+            ok_del = True
+            if nresp:
+                st.warning(f"Este evento ya tiene {nresp} registros de participantes (respuestas/inicios de test). Si cambias las preguntas se borrarán.")
+                ok_del = st.checkbox("Entiendo que se borrarán esas respuestas", key=f"okdel{eid}")
+            st.button("Volver a editar la selección", key=f"reab{eid}", disabled=not ok_del,
+                      on_click=reabrir_tests, args=(eid, bool(nresp)))
     else:
         bank = df("SELECT id, pregunta, alts, a, b, c, d, nivel FROM questions ORDER BY id")
         st.write(f"Preguntas en el banco: {len(bank)}")
         txt = dict(zip(bank.id, bank.pregunta)); nalt = {int(r.id): len(alts_of(r)) for _, r in bank.iterrows()}
         lv = {int(r.id): (r.nivel if isinstance(r.nivel, str) else "sin nivel") for _, r in bank.iterrows()}
         fmt = lambda i: f"{i} - [{lv[i]}] {txt[i][:70]} ({nalt[i]} alt.)"
-        ns = int(st.number_input("Cantidad de tests (cada uno con su ranking)", 1, 50, 1, key=f"ns{eid}"))
+        st.session_state.setdefault(f"ns{eid}", 1)
+        ns = int(st.number_input("Cantidad de tests (cada uno con su ranking)", 1, 50, key=f"ns{eid}"))
         used, plan, bad = set(), [], False
         for k in range(1, ns + 1):
             with st.expander(f"Test {k}", expanded=(k == 1)):
-                secs = parse_dur(st.text_input("Duración (hh:mm:ss)", "00:10:00", key=f"du{eid}_{k}"))
+                st.session_state.setdefault(f"du{eid}_{k}", "00:10:00")
+                secs = parse_dur(st.text_input("Duración (hh:mm:ss)", key=f"du{eid}_{k}"))
                 if secs is None:
                     st.error("Formato inválido. Use hh:mm:ss (ej: 00:10:00)"); bad = True
                 modo = st.radio("¿Cómo se eligen las preguntas?", ["Al azar desde el banco", "Elegir manualmente (en el orden que las marques)"], key=f"md{eid}_{k}")
