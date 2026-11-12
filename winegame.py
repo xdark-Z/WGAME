@@ -1,3 +1,4 @@
+import re
 import base64, html as _html, streamlit as st, streamlit.components.v1 as components, sqlite3, pandas as pd, json, random, io
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
@@ -1562,39 +1563,45 @@ def register():
     with st.container(key="regbox"):
         st.markdown(glass(), unsafe_allow_html=True)
         components.html(GLASS_JS, height=0)
-        a1, a2 = st.columns(2)
-        nombre = a1.text_input("Nombre", key="rg_n")
-        apellido = a2.text_input("Apellido (opcional)", key="rg_a")
-        b1, b2 = st.columns(2)
-        edad = b1.number_input("Edad (opcional)", 10, 120, value=None, key="rg_e", placeholder="Opcional")
-        genero = b2.selectbox("Género (opcional)", ["Hombre", "Mujer", "Otro"], index=None, placeholder="Opcional", key="rg_g")
-        email = st.text_input("Correo electrónico", key="rg_m", placeholder="tucorreo@ejemplo.com")
-        tel_raw = st.text_input("Celular", value="+56 ", key="rg_t", placeholder="+56 9 1234 5678")
-        if st.button("¡Salud! Entrar a la cata", icon=":material/wine_bar:", type="primary", key="rg_go"):
-            em = email.strip().lower()
-            if not nombre.strip():
-                st.error("El nombre es obligatorio.")
-                return
-            if not em or not ("@" in em and "." in em.split("@")[-1]):
-                st.error("El correo es obligatorio y debe ser válido.")
-                return
-            dig = "".join(ch for ch in tel_raw if ch.isdigit())
-            dig = dig[2:] if dig.startswith("56") else dig
-            if len(dig) != 9:
-                st.error("El celular es obligatorio: 9 dígitos después del +56 (ej: +56 9 1234 5678).")
-                return
-            tel = "+56" + dig if dig else None
-            ex = df("SELECT id FROM users WHERE email=?", (em,)) if em else pd.DataFrame()
-            if len(ex):
-                st.session_state.uid = int(ex.id[0])
-                if tel:
-                    run("UPDATE users SET telefono=? WHERE id=?", (tel, int(ex.id[0])))
-            else:
-                st.session_state.uid = run(
-                    "INSERT INTO users(nombre,apellido,edad,email,genero,creado,telefono) VALUES(?,?,?,?,?,?,?)",
-                    (nombre.strip(), apellido.strip(), int(edad) if edad else None, em or None, genero, now(), tel))
-            st.session_state.welcome = nombre.strip()
-            st.rerun()
+        with st.form("rg_form", border=False):
+            a1, a2 = st.columns(2)
+            nombre = a1.text_input("Nombre", key="rg_n")
+            apellido = a2.text_input("Apellido (opcional)", key="rg_a")
+            b1, b2 = st.columns(2)
+            edad = b1.number_input("Edad (opcional)", 10, 120, value=None, key="rg_e", placeholder="Opcional")
+            genero = b2.selectbox("Género (opcional)", ["Hombre", "Mujer", "Otro"], index=None, placeholder="Opcional", key="rg_g")
+            email = st.text_input("Correo electrónico", key="rg_m", placeholder="tucorreo@ejemplo.com")
+            tel_raw = st.text_input("Celular", value="+56 ", key="rg_t", placeholder="+56 9 1234 5678")
+            if st.form_submit_button("¡Salud! Entrar a la cata", icon=":material/wine_bar:", type="primary", key="rg_go"):
+                em = "".join((email or "").split()).lower()
+                if not nombre.strip():
+                    st.error("El nombre es obligatorio.")
+                    return
+                if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", em):
+                    st.error("El correo es obligatorio y debe ser válido.")
+                    return
+                dig = "".join(ch for ch in tel_raw if ch.isdigit())
+                if dig.startswith("0056"):
+                    dig = dig[4:]
+                elif dig.startswith("56") and len(dig) > 9:
+                    dig = dig[2:]
+                elif dig.startswith("0") and len(dig) == 10:
+                    dig = dig[1:]
+                if len(dig) != 9:
+                    st.error("El celular es obligatorio: 9 dígitos después del +56 (ej: +56 9 8431 7775 o +56984317775).")
+                    return
+                tel = "+56" + dig if dig else None
+                ex = df("SELECT id FROM users WHERE email=?", (em,)) if em else pd.DataFrame()
+                if len(ex):
+                    st.session_state.uid = int(ex.id[0])
+                    if tel:
+                        run("UPDATE users SET telefono=? WHERE id=?", (tel, int(ex.id[0])))
+                else:
+                    st.session_state.uid = run(
+                        "INSERT INTO users(nombre,apellido,edad,email,genero,creado,telefono) VALUES(?,?,?,?,?,?,?)",
+                        (nombre.strip(), apellido.strip(), int(edad) if edad else None, em or None, genero, now(), tel))
+                st.session_state.welcome = nombre.strip()
+                st.rerun()
 
 def quiz_ui(qs, eid, uid, sno, deadline):
     ss = st.session_state; N = len(qs); kk = f"{eid}_{uid}_{sno}"
